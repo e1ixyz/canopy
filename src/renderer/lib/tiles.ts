@@ -23,3 +23,22 @@ export async function runSkill(name: string, sessionId?: string) {
   if (s?.kind === 'claude' && s.status !== 'exited' && s.status !== 'error') return submitPrompt(s.id, `/${name}`)
   await st.spawn({ kind: 'claude', projectPath: '', cwd: orch.homedir, prompt: `/${name}` })
 }
+
+/** psql on the checkout's DATABASE_URL (or the adapter's db settings), in its own tile */
+export async function openDb(cwd: string, projectPath: string) {
+  const st = useApp.getState()
+  const adapter = await orch.invoke('adapter:get', projectPath).catch(() => null)
+  const varName = adapter?.db?.varName ?? 'DATABASE_URL'
+  const files = await orch.invoke('db:envFiles', cwd, varName)
+  const envFile = adapter?.db?.envFile && files.includes(adapter.db.envFile) ? adapter.db.envFile : files.includes('.env') ? '.env' : files[0]
+  if (!envFile) return st.toast(`No ${varName} in this checkout's .env files`, 'warn')
+  return st.spawn({ kind: 'db', projectPath, cwd, target: { kind: 'db', envFile, varName } })
+}
+
+/** Railway logs and variables for this checkout; asks for the project once */
+export async function openDeploy(cwd: string, projectPath: string) {
+  const st = useApp.getState()
+  const hint = await orch.invoke('deploy:suggest', cwd, projectPath)
+  if (!hint.saved) return st.set({ deploySetup: { cwd, projectPath } })
+  return st.spawn({ kind: 'deploy', projectPath, cwd, target: { kind: 'deploy', ...hint.saved } })
+}

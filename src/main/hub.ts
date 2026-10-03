@@ -7,6 +7,7 @@ import type { EventMap } from '@shared/ipc'
 import {
   PROJECT_COLORS,
   type Adapter,
+  type AppState,
   type AdapterAction,
   type BusMessage,
   type HandoffMeta,
@@ -32,7 +33,9 @@ import { PortWatcher } from './port-watcher'
 import { contextInfo, lastAssistantText, projectSlug } from './recents'
 import { changedFiles, classify } from './ship'
 import { getState, saveState, sessionDir } from './store'
-import { baseName, commandFor, TARGET_KINDS } from './tiles'
+import { baseName, commandFor, q, TARGET_KINDS } from './tiles'
+import { dbInfo } from './db'
+import { forgetVars, linkedProject, varsDiff } from './railway'
 import { UsageTracker, sumTotals } from './usage'
 import { fill } from './worktree/adapters'
 import { primaryRoot } from './worktree/git'
@@ -650,6 +653,60 @@ export class Hub {
   confirmSpawn(requestId: string, ok: boolean) {
     this.pendingSpawns.get(requestId)?.(ok)
     this.pendingSpawns.delete(requestId)
+  }
+
+  // ---------- deploy and db tiles ----------
+
+  /** Point a deploy or db tile somewhere else (an environment tab, another .env) and restart it */
+  async retarget(id: string, target: TileTarget) {
+    const s = this.sessions.get(id)
+    if (!s || s.target?.kind !== target.kind) return
+    forgetVars(id)
+    this.patch(id, { target, name: s.target.kind === 'deploy' && s.name.startsWith('railway:') ? this.uniqueName(s.kind, s.branch, target) : s.name })
+    await this.restart(id)
+  }
+
+  async dbInfo(id: string) {
+    const s = this.sessions.get(id)
+    if (s?.target?.kind !== 'db') throw new Error('Not a database tile')
+    return dbInfo(s.cwd, s.target, await this.adapterFor(s))
+  }
+
+  /** The Railway target for this checkout: chosen before, from the adapter, or prefilled from the CLI's own link */
+  async deploySuggest(cwd: string, projectPath: string) {
+    const repo = (await primaryRoot(cwd).catch(() => null)) ?? cwd
+    const saved = getState().deployTargets[repo]
+    if (saved) return { repo, saved, linked: null }
+    const project = getState().projects.find((p) => p.path === projectPath)
+    const a = await this.worktrees.adapter(project?.path ?? projectPath).catch(() => null)
+    if (a?.railway) return { repo, saved: { ...a.railway, environment: a.railway.environments?.[0] ?? 'production' }, linked: null }
+    return { repo, saved: null, linked: linkedProject([cwd, repo, projectPath]) }
+  }
+
+  saveDeployTarget(repo: string, t: AppState['deployTargets'][string]) {
+    getState().deployTargets[repo] = t
+    saveState()
+  }
+
+  async deployVars(id: string, envFile?: string) {
+    const s = this.sessions.get(id)
+    if (s?.target?.kind !== 'deploy') throw new Error('Not a deploy tile')
+    return varsDiff(id, s.target, s.cwd, envFile)
+  }
+
+  /** `railway ssh` into the deploy tile's service, in a tile of its own */
+  deploySsh(id: string) {
+    const s = this.sessions.get(id)
+    if (s?.target?.kind !== 'deploy') throw new Error('Not a deploy tile')
+    const t = s.target
+    const project = getState().projects.find((p) => p.id === s.projectId)
+    return this.spawn({
+      kind: 'dev',
+      projectPath: project?.path ?? s.cwd,
+      cwd: s.cwd,
+      name: `ssh:${t.service}@${t.environment}`,
+      command: `railway ssh -p ${q(t.project)} -e ${q(t.environment)} -s ${q(t.service)}`,
+    })
   }
 
   // ---------- prompts ----------

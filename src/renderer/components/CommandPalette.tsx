@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Archive,
+  Cloud,
+  Database,
   Server,
   Wand2,
   ArrowRight,
@@ -28,7 +30,7 @@ import { tileForSession, useApp } from '../store/app'
 import { freshHandoff, saveHandoff } from './TileChips'
 import { Modal } from './ui'
 import type { HostEntry, SkillInfo } from '@shared/types'
-import { openHost, runSkill } from '../lib/tiles'
+import { openDb, openDeploy, openHost, runSkill } from '../lib/tiles'
 
 interface Cmd {
   id: string
@@ -104,6 +106,8 @@ function Body() {
         },
         { id: 'fresh', group: 'This tile', label: 'Fresh session with handoff', icon: <Sparkles size={14} />, run: () => freshHandoff(activeSession) },
         { id: 'save-handoff', group: 'This tile', label: 'Save handoff for later', icon: <Archive size={14} />, run: () => saveHandoff(activeSession) },
+        { id: 'db', group: 'This tile', label: 'Database console for this checkout', icon: <Database size={14} />, run: () => openDb(activeSession.cwd, projectPath ?? activeSession.cwd) },
+        { id: 'railway', group: 'This tile', label: 'Railway logs & variables', icon: <Cloud size={14} />, run: () => openDeploy(activeSession.cwd, projectPath ?? activeSession.cwd) },
         { id: 'clear', group: 'This tile', label: 'Clear context (/clear)', icon: <TerminalSquare size={14} />, run: () => submitPrompt(activeSession.id, '/clear') },
         { id: 'preview', group: 'This tile', label: `Toggle preview for ${activeSession.name}`, hint: '⌘⇧P', icon: <Globe size={14} />, run: () => st.togglePreview(activeTile.id) },
         {

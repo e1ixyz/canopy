@@ -3,6 +3,11 @@ import type {
   Adapter,
   AdapterAction,
   HandoffMeta,
+  DbInfo,
+  DeployTarget,
+  RailwayProject,
+  TileTarget,
+  VarRow,
   HostEntry,
   SkillInfo,
   PortsSnapshot,
@@ -92,6 +97,15 @@ export interface InvokeMap {
   'handoffs:pickUp': (file: string, original: boolean) => Session
   'hosts:list': () => HostEntry[]
   'skills:list': (cwd?: string) => SkillInfo[]
+  'session:retarget': (id: string, target: TileTarget) => void
+  'db:info': (sessionId: string) => DbInfo
+  'db:envFiles': (cwd: string, varName?: string) => string[]
+  'deploy:projects': () => RailwayProject[]
+  'deploy:suggest': (cwd: string, projectPath: string) => { repo: string; saved: DeployTarget | null; linked: { project: string; environment?: string; service?: string } | null }
+  'deploy:save': (repo: string, target: DeployTarget) => void
+  'deploy:vars': (sessionId: string, envFile?: string) => VarRow[]
+  'deploy:reveal': (sessionId: string, key: string) => { local?: string; remote?: string } | null
+  'deploy:ssh': (sessionId: string) => Session
 }
 
 /** renderer -> main fire-and-forget */

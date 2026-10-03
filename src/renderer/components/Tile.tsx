@@ -1,6 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Archive,
+  Cloud,
+  Database,
+  PanelRight,
   ArchiveX,
   Camera,
   Eraser,
@@ -34,11 +37,13 @@ import type { Rect } from '../lib/layout'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
 import { askPrompt } from '../lib/prompts'
+import { openDb, openDeploy } from '../lib/tiles'
 import { submitPrompt } from '../lib/terms'
 import { cx, tildify } from '../lib/util'
 import { useApp } from '../store/app'
 import { PreviewPane } from './PreviewPane'
 import { PrPanel } from './PrPanel'
+import { DbPanel, DeployPanel } from './SidePanels'
 import { BadgeChip, GoalChip, ModeChips, saveHandoff, useFreshHandoff } from './TileChips'
 import { TerminalView } from './TerminalView'
 import { Button, IconButton, Popover, Ring, StatusPill } from './ui'
@@ -83,6 +88,7 @@ export const Tile = memo(function Tile({
   const [renaming, setRenaming] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [ctxOpen, setCtxOpen] = useState(false)
+  const [sideOpen, setSideOpen] = useState(true)
   const prOpen = useApp((st) => st.prFor === tile.id)
   const fresh = useFreshHandoff()
 
@@ -91,6 +97,7 @@ export const Tile = memo(function Tile({
   const color = project?.color ?? '#a78bfa'
   // Only checkout tiles get a browser preview of the worktree's dev server.
   const previewable = s.kind === 'claude' || s.kind === 'shell' || s.kind === 'dev'
+  const side = (s.kind === 'db' || s.kind === 'deploy') && sideOpen && rect.w > 520
   const preview = tile.preview?.open
   const split = tile.preview?.split ?? 0.45
   const glow =
@@ -250,6 +257,11 @@ export const Tile = memo(function Tile({
             ✉ {s.unread}
           </motion.span>
         )}
+        {(s.kind === 'db' || s.kind === 'deploy') && (
+          <IconButton title={sideOpen ? 'Hide panel' : 'Show panel'} active={sideOpen} onClick={() => setSideOpen((o) => !o)}>
+            <PanelRight size={14} />
+          </IconButton>
+        )}
         {previewable && (
           <IconButton
             title={portList.length ? `Preview :${portList.join(', :')} (⌘⇧P)` : 'Open preview'}
@@ -298,11 +310,15 @@ export const Tile = memo(function Tile({
           className="relative min-w-0"
           animate={{ flexBasis: preview ? `${split * 100}%` : '100%' }}
           transition={spring.layout}
-          style={{ flexGrow: 0, flexShrink: 0 }}
+          style={{ flexGrow: 0, flexShrink: side ? 1 : 0 }}
         >
           <TerminalView sessionId={s.id} visible tileId={tile.id} />
           <ExitedOverlay s={s} />
         </motion.div>
+        <AnimatePresence>
+          {side && s.kind === 'db' && <DbPanel key="db" s={s} projectPath={project?.path ?? s.cwd} />}
+          {side && s.kind === 'deploy' && <DeployPanel key="deploy" s={s} />}
+        </AnimatePresence>
         <AnimatePresence>{prOpen && <PrPanel key="pr" s={s} tileId={tile.id} onClose={() => useApp.getState().set({ prFor: null })} />}</AnimatePresence>
         <AnimatePresence>
           {preview && (
@@ -495,6 +511,8 @@ function TileMenu({
           }
         })}
       {repo && item(<TermIcon size={13} />, 'Shell here', () => useApp.getState().spawn({ kind: 'shell', projectPath, cwd: s.cwd }))}
+      {repo && item(<Database size={13} />, 'Database console here', () => openDb(s.cwd, projectPath))}
+      {repo && item(<Cloud size={13} />, 'Railway logs & variables', () => openDeploy(s.cwd, projectPath))}
       {item(<FolderOpen size={13} />, 'Reveal in Finder', () => orch.invoke('shell:reveal', s.cwd))}
       {item(<Copy size={13} />, 'Copy session id', () => {
         navigator.clipboard.writeText(s.id)

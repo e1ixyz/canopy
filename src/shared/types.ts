@@ -102,6 +102,35 @@ export interface SkillInfo {
   source: 'user' | 'plugin' | 'project'
 }
 
+export interface DeployTarget {
+  project: string
+  projectName?: string
+  service: string
+  environment: string
+  environments?: string[]
+}
+
+export interface RailwayProject {
+  id: string
+  name: string
+  environments: string[]
+  services: string[]
+}
+
+export interface VarRow {
+  key: string
+  status: 'same' | 'differs' | 'local' | 'remote' | 'sealed'
+}
+
+export interface DbInfo {
+  envFile: string
+  varName: string
+  conn: { host: string; port: string; database: string; user?: string } | null
+  envFiles: string[]
+  scripts: { name: string; command: string; danger: boolean }[]
+  drift?: string
+}
+
 export interface HandoffMeta {
   file: string
   title: string
@@ -303,7 +332,7 @@ export interface AppState {
   settings: Settings
   shotSets: Record<string, ShotSetPrefs>
   /** Railway target per primary checkout, chosen once in the deploy setup sheet */
-  deployTargets: Record<string, { project: string; projectName?: string; service: string; environment: string; environments?: string[] }>
+  deployTargets: Record<string, DeployTarget>
 }
 
 export interface SpawnRequest {

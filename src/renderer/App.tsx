@@ -1,3 +1,4 @@
+import { DeploySetupSheet } from './components/DeploySetup'
 import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'motion/react'
 import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -120,6 +121,7 @@ export function App() {
         <ShotSetSheet />
         <GoalSheet />
         <ShipSheet />
+        <DeploySetupSheet />
         <SettingsPanel />
         <BroadcastSheet />
         <WorktreesPanel />

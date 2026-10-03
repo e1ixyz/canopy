@@ -70,3 +70,39 @@ describe('skills', () => {
     ])
   })
 })
+
+describe('railway', () => {
+  it('classifies variables by key without exposing values', async () => {
+    const { classifyVars, linkedProject } = await import('./railway')
+    expect(classifyVars({ A: '1', B: '2', C: '3', S: 'x' }, { A: '1', B: 'other', D: '4', S: null })).toEqual([
+      { key: 'A', status: 'same' },
+      { key: 'B', status: 'differs' },
+      { key: 'C', status: 'local' },
+      { key: 'D', status: 'remote' },
+      { key: 'S', status: 'sealed' },
+    ])
+    const dir = mkdtempSync(join(tmpdir(), 'rw-'))
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ projects: { '/r/app': { project: 'p1', environmentName: 'staging', service: null } } }))
+    expect(linkedProject(['/r/app-wt', '/r/app'], join(dir, 'config.json'))).toEqual({ project: 'p1', environment: 'staging', service: undefined })
+    expect(linkedProject(['/nope'], join(dir, 'config.json'))).toBeNull()
+  })
+})
+
+describe('db', () => {
+  it('finds db scripts and flags destructive ones', async () => {
+    const { dbScripts, envFilesWith } = await import('./db')
+    expect(dbScripts({ scripts: { dev: 'x', 'db:seed': 'x', 'db:reset': 'x', migrate: 'x', 'seed-images': 'x', 'db:push': 'x', lint: 'x' } }, 'bun')).toEqual([
+      { name: 'db:seed', command: 'bun run db:seed', danger: false },
+      { name: 'db:reset', command: 'bun run db:reset', danger: true },
+      { name: 'migrate', command: 'bun run migrate', danger: false },
+      { name: 'seed-images', command: 'bun run seed-images', danger: false },
+      { name: 'db:push', command: 'bun run db:push', danger: true },
+    ])
+    const dir = mkdtempSync(join(tmpdir(), 'db-'))
+    writeFileSync(join(dir, '.env'), 'DATABASE_URL=postgres://x/y')
+    writeFileSync(join(dir, '.env.test'), 'DATABASE_URL=postgres://x/y_test')
+    writeFileSync(join(dir, '.env.example'), 'DATABASE_URL=postgres://ex')
+    writeFileSync(join(dir, '.env.local'), 'OTHER=1')
+    expect(envFilesWith(dir, 'DATABASE_URL')).toEqual(['.env', '.env.test'])
+  })
+})

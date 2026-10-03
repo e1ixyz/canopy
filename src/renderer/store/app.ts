@@ -73,6 +73,8 @@ interface AppStore {
   goalFor: string | null
   shipFor: string | null
   prFor: string | null
+  /** the Railway setup sheet; sessionId set means re-pointing an existing deploy tile */
+  deploySetup: { cwd: string; projectPath: string; sessionId?: string } | null
   newSession: NewSessionOpts | null
   selected: string[]
   confirms: Confirm[]
@@ -162,6 +164,7 @@ export const useApp = create<AppStore>((set, get) => ({
   goalFor: null,
   shipFor: null,
   prFor: null,
+  deploySetup: null,
   newSession: null,
   selected: [],
   confirms: [],

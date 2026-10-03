@@ -8,7 +8,9 @@ import type { EventMap, InvokeMap, SendMap } from '@shared/ipc'
 import { startBusServer } from './bus/server'
 import { Hub } from './hub'
 import { getPr } from './pr'
+import { envFilesWith } from './db'
 import { listHosts } from './hosts'
+import { railwayProjects, revealVar } from './railway'
 import { ensureDir, orchHome } from './paths'
 import { listRecents, listTranscripts } from './recents'
 import { listSkills } from './skills'
@@ -161,6 +163,15 @@ function registerIpc() {
   handle('handoffs:pickUp', (file, original) => hub.pickUp(file, original))
   handle('hosts:list', () => listHosts(getState().settings.hosts))
   handle('skills:list', (cwd) => listSkills(cwd))
+  handle('session:retarget', (id, target) => hub.retarget(id, target))
+  handle('db:info', (id) => hub.dbInfo(id))
+  handle('db:envFiles', (cwd, varName) => envFilesWith(cwd, varName))
+  handle('deploy:projects', () => railwayProjects())
+  handle('deploy:suggest', (cwd, projectPath) => hub.deploySuggest(cwd, projectPath))
+  handle('deploy:save', (repo, t) => hub.saveDeployTarget(repo, t))
+  handle('deploy:vars', (id, envFile) => hub.deployVars(id, envFile))
+  handle('deploy:reveal', (id, key) => revealVar(id, key))
+  handle('deploy:ssh', (id) => hub.deploySsh(id))
   handle('prompts:get', (id, key, vars) => hub.prompt(id, key, vars))
   handle('prompts:shipTargets', (id) => hub.shipTargets(id))
   handle('adapters:openFolder', () => {
