@@ -1,6 +1,6 @@
 # Orchestrator roadmap
 
-_Written 2026-10-02. Items 1–10 were built the same day (see HANDOFF.md, Current state); 11–20 are still open._
+_Written 2026-10-02. Items 1–10 were built the same day and 11–18 on 2026-10-03 (see HANDOFF.md, Current state). Still open: notarization and publishing from 18, and all of 19 and 20._
 
 _Based on your Claude Code history: 6,441 prompts sent between 2026-05-04 and 2026-10-02 (`~/.claude/history.jsonl`), plus tool calls across 501 session transcripts in `~/.claude/projects`._
 
@@ -63,36 +63,36 @@ Playwright is your most-called MCP server by a wide margin, and the etwal harnes
 ### 10. Safer shipping alongside other sessions (built)
 "There's another session working, so only push this work" and "fold in the other session's one-line change" come up 35 times, many inside `/ship`. The bus already knows who claimed what. A Ship action can show the files each session touched, from claims plus the git diff, stage only this session's files, and ask the other session over the bus before folding its change in. It then hands off to your existing `/ship` skill for the Railway part.
 
-### 11. Railway tiles
+### 11. Railway tiles (built)
 `railway ssh`, `variables`, `logs` and `deployment` add up to about 2,000 calls. Add a Deploy tile kind with environment tabs (staging, prod), a live `railway logs` stream in a terminal, a variables diff between local `.env` and each environment (the "make sure everything is in parity" prompts), and a one-click `railway ssh` shell. All of it runs the Railway CLI you already use, so auth stays where it is.
 
-### 17. A handoff shelf to pick up later
+### 17. A handoff shelf to pick up later (built)
 You asked for a handoff saved to a file 43 times (`/handoff-chat .md desktop`). Another 69 prompts amount to "continue from that handoff". Today those files pile up on the Desktop, and resuming means finding one and pasting it into a new session. The app already writes handoffs for Fresh session with handoff (`collectHandoff` in `src/main/hub.ts`), so it can keep them instead of throwing them away.
 
 Save handoff, from the tile menu or the context ring, has the session write the handoff the same way. The app stores it as markdown in `~/.orchestrator/handoffs/<project>/<date>-<slug>.md`, together with the project, worktree, branch, session name and the transcript id. Saving can also close the session, which is the "I'm done for today" move. The launcher card shows a project's saved handoffs, and the new-session sheet gets a fourth tab, Pick up, next to Resume. Picking one starts a fresh session in the same worktree, seeded with the handoff. If the worktree is gone, the session starts in the primary checkout and is told which branch to restore. Each handoff also records the transcript id, so "Resume the original conversation instead" is one click when the full history matters more than a clean context. A saved handoff can be renamed, opened in an editor, or deleted, and pickups mark it used so the list stays short.
 
 ## Later: the rest of your machine
 
-### 12. Saved remote hosts
+### 12. Saved remote hosts (built)
 You SSH into the Mac Studio, the Office DJ box and the MC VPS regularly, often to restart a service or read logs. A Hosts list in the launcher could open any of them as a shell tile with one click, using the names already in your `~/.ssh/config`. A remote tile could also run Claude over SSH so a session lives on the box it is fixing, which matters for the Minecraft server work (`/mc-maintenance`, Crafty restarts, the ChatMenu and ServerManager plugins).
 
-### 13. Database console per worktree
+### 13. Database console per worktree (built; migration drift only when an adapter names a drift command)
 `psql` shows up 376 times, mostly against the etwal dev DB and the isolated `*_test` databases the worktree script creates. A DB tile can open `psql` with the worktree's own `DATABASE_URL` from its `.env`. It can list the repo's seed scripts as buttons (66 seed requests) and show migration drift, the thing `dev-up.sh` and `wt-doctor.sh` check for.
 
-### 14. Design canvas next to the code
+### 14. Design canvas next to the code (built)
 Design passes (`/design`, variations, Figma reconciliation) run through artifacts and Figma links. A tile kind that opens a claude.ai artifact or a Figma URL in a webview, pinned beside the session implementing it, saves the alt-tab. Pair it with item 7 so a screenshot of the live preview can drop straight onto the design for comparison.
 
-### 15. Images into sessions
+### 15. Images into sessions (built)
 447 prompts carry pasted images, usually a screenshot of the running app with a red circle. The preview can already save a shot and paste its path. Add an annotate step, a quick pen and arrow over the capture before it goes to the session, so "this padding, here" travels with the image.
 
-### 16. Personal skills as launchers
+### 16. Personal skills as launchers (built: skills in the palette)
 Smaller loops with dedicated skills: `/invoice` (11), meeting sync and analysis (121 meeting prompts, mostly Conduit work), `/recap` (18) and `/security-review` (16). The command palette can list every skill in `~/.claude/skills` and run one in the active tile, or in a scratch session when it does not belong to a project.
 
 ## Making it installable for others
 
 Today the app assumes your machine: your paths, your skills, your Desktop and an ad-hoc signature that only your Mac trusts. These three stages turn it into something another Claude Code user can download.
 
-### 18. Stage 1: send it to a friend (about a day)
+### 18. Stage 1: send it to a friend (built, except signing with a Developer ID, notarizing and publishing to GitHub Releases)
 Five fixes, most of them removals.
 
 Move the built-in adapters out of the app bundle. `adapters/etwal.json` ships inside the build with `/Users/elimcgehee/...` paths in it. Per-user adapters belong in `~/.orchestrator/adapters/`, next to the repo-level `.orchestrator.json` that already works.

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
   BellRing,
+  Boxes,
   BookOpen,
   Command,
   Eraser,
@@ -143,11 +144,23 @@ const SECTIONS: Section[] = [
         'Drag the divider to resize. Port chips jump between servers.',
         'Fill, 1440, 768 and 390 set the page width. Wider widths scale down to fit.',
         'The moon toggles prefers-color-scheme between dark, light and page default.',
-        'The camera saves a screenshot to ~/Desktop/<session>-shots. ⇧-click it to paste the file path into the session’s prompt.',
+        'The camera opens the screenshot in a mark-up sheet: draw arrows, boxes or freehand, then Send pastes the PNG’s path into the session’s prompt. ⌥-click saves straight to ~/Desktop/<session>-shots; ⇧-click saves and pastes without marking up.',
         'Each worktree has its own cookie jar, so a login on one branch never collides with another.',
         'Clicking a localhost link in a terminal opens it in the preview.',
       ] },
       { p: 'No server yet? Start dev server runs the project adapter’s run script or the package.json dev script with the worktree’s ports exported. Its logs open under the preview.' },
+    ],
+  },
+  {
+    id: 'tiles',
+    title: 'Databases, Railway, hosts, designs',
+    icon: <Boxes size={15} />,
+    blurb: 'Tiles for the things you keep opening next to the code.',
+    blocks: [
+      { p: 'Database console here, in a tile’s menu, opens psql on the checkout’s DATABASE_URL. The URL is read from the .env when the tile starts and handed to psql through its environment, so it never shows up in a process list. The side panel shows which database you are on, switches between .env files that define one, and turns the db, seed and migrate scripts in package.json into buttons. Anything named like reset, drop or push asks for a second click.' },
+      { p: 'Railway logs & variables asks once per checkout which project, service and environments to use, prefilled from the Railway CLI’s own link when it has one. The tile streams railway logs, and the panel’s tabs switch environment. Compare lists every variable that differs between a local .env and the environment, by name; values stay hidden until you reveal one, and the app never stores them. SSH opens railway ssh in its own tile. Nothing here deploys or writes a variable.' },
+      { p: 'Hosts come from ~/.ssh/config, plus any you add in Settings. Each one is a card on the launcher and an entry in the palette: Shell opens ssh in a tile, the sparkle runs Claude on the host itself.' },
+      { p: 'Open design beside… puts a claude.ai artifact, a Figma file or any URL in a tile next to the session. Design tiles share one browser profile, so you sign in once. Compare captures the session’s live preview and lays it over the design with an opacity slider, or beside it, and Mark up sends that comparison to the session.' },
     ],
   },
   {
@@ -202,12 +215,20 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'fresh',
-    title: 'Fresh context',
+    title: 'Fresh context & handoffs',
     icon: <Eraser size={15} />,
-    blurb: 'Start clean without losing the thread.',
+    blurb: 'Start clean without losing the thread, now or tomorrow.',
     blocks: [
       { p: 'Fresh session with handoff asks the session to write a handoff and print it. The app then starts a new session in the same checkout, seeded with that handoff, in the same tile. The old session closes. Nothing needs approving because you asked for it.' },
-      { p: 'Clear runs /clear in place. Use it when the history is not worth carrying.' },
+      { p: 'Save handoff for later, in the tile menu or the context ring, does the same writing but keeps the result on a shelf instead of starting anything. Save handoff and close also ends the session, which is the end-of-day move.' },
+      { list: [
+        'Handoffs live as markdown in ~/.orchestrator/handoffs/<project>/, with the checkout, branch, session name and transcript id at the top.',
+        'Launcher cards show how many are waiting. Click the count, or open the new-session sheet’s Pick up tab.',
+        'Pick up starts a fresh session where the work lives. If that worktree is gone, it starts in the main checkout and is told which branch to restore.',
+        'Resume original conversation brings back the full history instead, when the transcript still exists.',
+        'Rename, open in your editor, delete, or Import file… to shelve a handoff written somewhere else.',
+      ] },
+      { p: 'Clear runs /clear in place. Use it when the history is not worth carrying. The wording of the handoff request is yours to change in Settings → Prompts.' },
     ],
   },
   {
@@ -228,7 +249,8 @@ const SECTIONS: Section[] = [
     blurb: 'Everything worth doing twice has a key.',
     blocks: [
       { keys: [
-        ['⌘K', 'Command palette: commands, sessions, projects, and a search across every terminal’s scrollback'],
+        ['⌘K', 'Command palette: commands, sessions, projects, hosts, skills, and a search across every terminal’s scrollback'],
+        ['⌘K then /', 'Only your skills: user, plugin and project ones. Enter runs it in the active Claude tile, or a scratch session'],
         ['⌘T', 'New session'],
         ['⌘⇧T', 'New worktree + session'],
         ['⌘O', 'Projects launcher'],

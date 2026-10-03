@@ -2,7 +2,7 @@
 
 A desktop app for running many Claude Code sessions side by side. Pick a project, open as many sessions as you want, give each one its own git worktree and ports, and watch their dev servers in a browser pane next to each terminal. Sessions talk to each other over a shared bus, so they can split work without stepping on the same files.
 
-Every tile runs the real `claude` CLI in a PTY. Slash commands, skills (`/handoff`, `etwal-harness`), plugins, your hooks, MCP servers, plan mode and `/resume` all behave the way they do in a terminal.
+Every tile runs the real `claude` CLI in a PTY. Slash commands, your skills, plugins, hooks, MCP servers, plan mode and `/resume` all behave the way they do in a terminal.
 
 ## Run it
 
@@ -12,11 +12,16 @@ bun run dev        # hot-reloading dev build
 bun run app        # production build, run locally
 bun run package    # Orchestrator.app in dist/
 bun run install-app  # build, install to ~/Applications, ad-hoc sign, alias on the Desktop
+bun run dist       # release .dmg files (arm64 and x64), ad-hoc signed, no debug server
 bun run test       # unit tests (vitest)
 bun run typecheck
 ```
 
-Needs macOS, Node 22+, bun, and `claude` on your login shell's PATH.
+Needs macOS, Node 22+, bun, and `claude` on your login shell's PATH. The Railway tile needs the `railway` CLI, and the database tile needs `psql`.
+
+### Installing a .dmg on another Mac
+
+The release build is ad-hoc signed, not notarized, so macOS won't open it with a double-click the first time. Drag Orchestrator to Applications, then right-click it and choose Open (on macOS 15 and later: try to open it once, then System Settings → Privacy & Security → Open Anyway). If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Orchestrator.app`.
 
 ## What you get
 
@@ -33,11 +38,19 @@ Needs macOS, Node 22+, bun, and `claude` on your login shell's PATH.
 - A ports popover (kill, restart, open) and a token meter for today in the top bar. Each tile has model, effort and mode chips, plus a context ring that offers Fresh session with handoff.
 - A PR panel per tile (state, checks, feedback, Draft PR / Update body), and screenshot sets that save numbered full-page PNGs of a list of routes.
 - Goals that run in rounds with a read-only QA sibling verifying each one, and a Ship sheet that stages only this session's files when others share the checkout.
-- Project actions and a ratchet badge from the adapter (etwal: wt-doctor, wt-status, wt-merge-check, `ds:check`).
+- Project actions and a ratchet badge from the repo's adapter.
+- Saved handoffs: write one from a tile and pick it up later, from the launcher or the new-session sheet's Pick up tab, or resume the original conversation.
+- Tiles beyond Claude: psql on the checkout's `DATABASE_URL` with its seed and migrate scripts as buttons; `railway logs` with environment tabs and a variables diff against your `.env`; ssh shells (or Claude) on hosts from `~/.ssh/config`; and a design URL (claude.ai artifact, Figma) beside a session, with the live preview overlaid for comparison.
+- Mark-up for preview screenshots (arrows, boxes, pen) before the path goes into a session.
+- Your skills in the palette (⌘K, then `/`).
+
+## Prompts
+
+Every prompt the app types into a session (the handoff request, Update HANDOFF.md, the PR panel's buttons, Ship, the QA and docs role briefs) has a default that works without any personal skills. Settings → Prompts overrides each one, and so can an adapter. For example, set Ship to `/ship{target}. Stage and commit ONLY these files: {files}` to hand off to your own skill; because it uses `{target}`, the Ship sheet then offers staging, prod or both.
 
 ## Project adapters
 
-Repos with their own worktree tooling can drop a `.orchestrator.json` at the root, or ship one in `adapters/`. `adapters/etwal.json` routes worktree creation through etwal's `scripts/new-worktree.sh` and dev servers through `.wt-run.sh`. If that script hands out ports another worktree already claims, the harness moves the new tree to a free pair.
+A repo with its own worktree tooling can drop a `.orchestrator.json` at its root. For repos you don't control, put adapters in `~/.orchestrator/adapters/` (Settings → Open folder); `match` is a path prefix and may start with `~/`. An adapter can route worktree creation and dev servers through the repo's scripts, add tile actions and a badge, set the database `.env` and Railway target, and override prompts. If a create script hands out ports another worktree already claims, the harness moves the new tree to a free pair. `examples/adapter.example.json` documents every field.
 
 ```json
 {
