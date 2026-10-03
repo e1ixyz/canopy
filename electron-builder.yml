@@ -1,0 +1,17 @@
+appId: dev.orchestrator.app
+productName: Orchestrator
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: adapters
+    to: adapters
+asarUnpack:
+  - node_modules/node-pty/**
+mac:
+  category: public.app-category.developer-tools
+  target: dir
+  identity: null
+  icon: build/icon.icns

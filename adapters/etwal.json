@@ -1,0 +1,44 @@
+{
+  "name": "etwal",
+  "match": "/Users/elimcgehee/Developer/Client Work/Etwal/",
+  "primary": "/Users/elimcgehee/Developer/Client Work/Etwal/etwal",
+  "worktree": {
+    "create": "\"{primary}/scripts/new-worktree.sh\" {branch} {base}",
+    "run": "./.wt-run.sh",
+    "status": "\"{primary}/scripts/wt-status.sh\" --here",
+    "preflight": "\"{primary}/scripts/wt-doctor.sh\""
+  },
+  "devCommand": "bun run dev",
+  "previewPath": "/login",
+  "actions": [
+    {
+      "id": "preflight",
+      "label": "Preflight (wt-doctor)",
+      "command": "\"{primary}/scripts/wt-doctor.sh\"",
+      "show": "tile"
+    },
+    {
+      "id": "status",
+      "label": "Worktree & port status",
+      "command": "\"{primary}/scripts/wt-status.sh\"",
+      "show": "tile"
+    },
+    {
+      "id": "merge",
+      "label": "Merge check vs develop",
+      "command": "\"{primary}/scripts/wt-merge-check.sh\"",
+      "show": "tile"
+    },
+    {
+      "id": "ds",
+      "label": "Design ratchet (ds:check)",
+      "command": "bun run ds:check",
+      "show": "tile"
+    }
+  ],
+  "badge": {
+    "label": "DS",
+    "command": "bun run ds:check",
+    "on": "stop"
+  }
+}
