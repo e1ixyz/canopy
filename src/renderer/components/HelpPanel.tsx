@@ -153,7 +153,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'tiles',
-    title: 'Databases, Railway, hosts, designs',
+    title: 'Other tile kinds',
     icon: <Boxes size={15} />,
     blurb: 'Tiles for the things you keep opening next to the code.',
     blocks: [
