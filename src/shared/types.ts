@@ -1,4 +1,6 @@
-export type SessionKind = 'claude' | 'shell' | 'dev'
+import type { PromptOverrides } from './prompts'
+
+export type SessionKind = 'claude' | 'shell' | 'dev' | 'deploy' | 'db' | 'host' | 'design'
 export type SessionStatus = 'starting' | 'idle' | 'working' | 'waiting' | 'exited' | 'error'
 export type Role = 'plain' | 'lead' | 'worker' | 'reviewer' | 'qa' | 'docs'
 export type PermissionMode = 'default' | 'auto' | 'acceptEdits' | 'plan' | 'bypassPermissions'
@@ -77,6 +79,39 @@ export interface Session {
   effort?: string
   badge?: BadgeResult
   goal?: GoalState
+  /** what a deploy, db, host or design tile points at */
+  target?: TileTarget
+}
+
+export type TileTarget =
+  | { kind: 'deploy'; project: string; projectName?: string; environment: string; service: string; environments?: string[] }
+  | { kind: 'db'; envFile: string; varName: string }
+  | { kind: 'host'; host: string; claude?: boolean }
+  | { kind: 'design'; url: string; pairedWith?: string }
+
+export interface HostEntry {
+  name: string
+  /** what follows `ssh`, e.g. `admin@mac-studio.local -i ~/.ssh/mac_studio`; empty means the name itself */
+  target?: string
+  source: 'ssh-config' | 'app'
+}
+
+export interface SkillInfo {
+  name: string
+  description: string
+  source: 'user' | 'plugin' | 'project'
+}
+
+export interface HandoffMeta {
+  file: string
+  title: string
+  project: string
+  cwd: string
+  branch?: string
+  session?: string
+  transcriptId?: string
+  created: number
+  used?: number
 }
 
 export interface BadgeResult {
@@ -239,6 +274,9 @@ export interface Adapter {
   previewPath?: string
   envPortKeys?: Partial<Record<'web' | 'api', string[]>>
   symlinks?: string[]
+  prompts?: PromptOverrides
+  db?: { envFile?: string; varName?: string; drift?: string }
+  railway?: { project: string; service: string; environments?: string[] }
 }
 
 export interface Settings {
@@ -248,6 +286,8 @@ export interface Settings {
   defaultModel: string
   reduceMotion: boolean
   notifications: boolean
+  prompts?: PromptOverrides
+  hosts?: HostEntry[]
 }
 
 export interface AppState {
@@ -260,6 +300,8 @@ export interface AppState {
   reservations: Record<string, PortPair>
   settings: Settings
   shotSets: Record<string, ShotSetPrefs>
+  /** Railway target per primary checkout, chosen once in the deploy setup sheet */
+  deployTargets: Record<string, { project: string; projectName?: string; service: string; environment: string; environments?: string[] }>
 }
 
 export interface SpawnRequest {
@@ -274,6 +316,7 @@ export interface SpawnRequest {
   command?: string
   pageId?: string
   resumeFrom?: string
+  target?: TileTarget
 }
 
 export interface NewWorktreeRequest {

@@ -1,0 +1,28 @@
+{
+  "$comment": "Copy to ~/.orchestrator/adapters/<name>.json (or to a repo root as .orchestrator.json, minus match/primary). Every field is optional. Commands run in a login shell in the worktree; {primary} {path} {branch} {base} {slug} {web} {api} are filled in.",
+  "name": "my-app",
+  "match": "~/code/my-app",
+  "primary": "~/code/my-app",
+  "worktree": {
+    "create": "\"{primary}/scripts/new-worktree.sh\" {branch} {base}",
+    "remove": "git worktree remove {path}",
+    "run": "./dev.sh",
+    "status": "git status --short",
+    "preflight": "\"{primary}/scripts/doctor.sh\""
+  },
+  "ports": { "web": 5173, "api": 3001 },
+  "envPortKeys": { "web": ["VITE_PORT"], "api": ["PORT"] },
+  "symlinks": [".env"],
+  "devCommand": "bun run dev",
+  "previewPath": "/login",
+  "actions": [
+    { "id": "lint", "label": "Lint", "command": "bun run lint", "show": "tile" }
+  ],
+  "badge": { "label": "TS", "command": "bun run typecheck", "on": "stop" },
+  "prompts": {
+    "qaBrief": "Your role: QA. Run bun run gate, then check the preview with the browser_* tools. Report findings with send_message.",
+    "ship": "/ship{target}. Stage and commit ONLY these files: {files}"
+  },
+  "db": { "envFile": ".env", "varName": "DATABASE_URL", "drift": "bun run db:check" },
+  "railway": { "project": "<railway project id>", "service": "web", "environments": ["staging", "production"] }
+}

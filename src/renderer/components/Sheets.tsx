@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ShipFile } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
-import { submitPrompt } from '../lib/terms'
+import { askPrompt } from '../lib/prompts'
 import { cx, shellQuote } from '../lib/util'
 import { findTile, useApp } from '../store/app'
 import { Button, Field, inputCls, Modal, Segmented, Toggle } from './ui'
@@ -193,8 +193,10 @@ function ShipBody({ id }: { id: string }) {
   const [plan, setPlan] = useState<{ files: ShipFile[]; branch?: string; upstream?: string; names: Record<string, string> } | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [target, setTarget] = useState<'push' | 'staging' | 'prod' | 'staging and prod'>('push')
+  const [targets, setTargets] = useState(false)
 
   useEffect(() => {
+    orch.invoke('prompts:shipTargets', id).then(setTargets)
     orch.invoke('ship:plan', id).then((p) => {
       setPlan(p)
       setPicked(new Set(p.files.filter((f) => f.owner === 'mine').map((f) => f.path)))
@@ -219,8 +221,7 @@ function ShipBody({ id }: { id: string }) {
     if (!files.length || !s) return
     for (const f of others.filter((f) => picked.has(f.path)))
       orch.invoke('bus:send', { to: f.owner, from: s.id, body: `Heads-up: I'm shipping ${f.path}, which includes your change.`, wake: false })
-    const where = target === 'push' ? '' : ` ${target}`
-    submitPrompt(s.id, `/ship${where}. Other sessions are working in this checkout, so stage and commit ONLY these files and nothing else: ${files.map(shellQuote).join(' ')}`)
+    askPrompt(s.id, 'ship', { files: files.map(shellQuote).join(' '), branch: plan?.branch ?? 'the current branch', target: target === 'push' || !targets ? '' : ` ${target}` })
     set({ shipFor: null })
   }
 
@@ -234,17 +235,19 @@ function ShipBody({ id }: { id: string }) {
             {plan ? `${plan.branch ?? '?'}${plan.upstream ? ` → ${plan.upstream}` : ' (no upstream yet)'}` : 'Reading the worktree…'}
           </div>
         </div>
-        <Segmented
-          id="ship-target"
-          value={target}
-          onChange={setTarget}
-          options={[
-            { value: 'push', label: 'Push' },
-            { value: 'staging', label: 'Staging' },
-            { value: 'prod', label: 'Prod' },
-            { value: 'staging and prod', label: 'Both' },
-          ]}
-        />
+        {targets && (
+          <Segmented
+            id="ship-target"
+            value={target}
+            onChange={setTarget}
+            options={[
+              { value: 'push', label: 'Push' },
+              { value: 'staging', label: 'Staging' },
+              { value: 'prod', label: 'Prod' },
+              { value: 'staging and prod', label: 'Both' },
+            ]}
+          />
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto scroll-thin px-6 py-4">
         {!plan && <div className="py-8 text-center text-[12.5px] text-white/40">…</div>}
@@ -285,7 +288,7 @@ function ShipBody({ id }: { id: string }) {
         <div className="flex-1" />
         <Button onClick={() => set({ shipFor: null })}>Cancel</Button>
         <Button tone="primary" disabled={!picked.size} onClick={ship}>
-          <Rocket size={13} /> Ship {target === 'push' ? '' : `to ${target}`}
+          <Rocket size={13} /> {!targets ? 'Commit & push' : target === 'push' ? 'Ship' : `Ship to ${target}`}
         </Button>
       </div>
     </div>

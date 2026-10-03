@@ -1,3 +1,4 @@
+import type { PromptKey } from './prompts'
 import type {
   Adapter,
   AdapterAction,
@@ -75,6 +76,9 @@ export interface InvokeMap {
   'shots:capture': (opts: { wcId: number; base: string; routes: string[]; width: number; scheme: 'light' | 'dark'; folder: string }) => { folder: string; files: string[] }
   'shots:remember': (projectPath: string, prefs: ShotSetPrefs) => void
   'handoff:allow': (id: string) => void
+  'prompts:get': (sessionId: string, key: PromptKey, vars?: Record<string, string | number | undefined>) => string
+  'prompts:shipTargets': (sessionId: string) => boolean
+  'adapters:openFolder': () => void
 }
 
 /** renderer -> main fire-and-forget */

@@ -31,6 +31,7 @@ import type { AdapterAction, Session, Tile as TileT } from '@shared/types'
 import type { Rect } from '../lib/layout'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
+import { askPrompt } from '../lib/prompts'
 import { submitPrompt } from '../lib/terms'
 import { cx, tildify } from '../lib/util'
 import { useApp } from '../store/app'
@@ -453,7 +454,7 @@ function TileMenu({
       {item(<Pencil size={13} />, 'Rename', onRename)}
       {item(<RotateCcw size={13} />, claude ? 'Restart (resume)' : 'Restart', () => orch.invoke('session:restart', s.id))}
       {claude && item(<GitFork size={13} />, 'New session in a fresh worktree', () => set({ newSession: { projectPath, mode: 'worktree' } }))}
-      {claude && item(<NotebookPen size={13} />, 'Update HANDOFF.md', () => submitPrompt(s.id, '/handoff'))}
+      {claude && item(<NotebookPen size={13} />, 'Update HANDOFF.md', () => askPrompt(s.id, 'updateHandoff'))}
       {claude && item(<Send size={13} />, 'Fresh session with handoff', () => fresh(s))}
       {claude && item(<Eraser size={13} />, 'Clear context', () => submitPrompt(s.id, '/clear'))}
       {claude && <div className="my-1 h-px bg-white/[0.06]" />}

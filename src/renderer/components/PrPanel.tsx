@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Camera, CheckCircle2, CircleDashed, ExternalLink, FilePen, GitPullRequestDraft, Loader2, RefreshCw, X, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import type { PromptKey } from '@shared/prompts'
 import type { PrInfo, Session } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
-import { submitPrompt } from '../lib/terms'
+import { askPrompt } from '../lib/prompts'
 import { cx } from '../lib/util'
 import { useApp } from '../store/app'
 import { Button, IconButton } from './ui'
@@ -32,8 +33,8 @@ export function PrPanel({ s, tileId, onClose }: { s: Session; tileId: string; on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.cwd])
 
-  const ask = (text: string) => {
-    submitPrompt(s.id, text)
+  const ask = (key: PromptKey, vars: Record<string, string | number>) => {
+    askPrompt(s.id, key, vars)
     onClose()
   }
 
@@ -69,8 +70,8 @@ export function PrPanel({ s, tileId, onClose }: { s: Session; tileId: string; on
         {pr === null && (
           <div className="py-8 text-center">
             <div className="text-[14px] font-semibold text-white/85">No PR for {s.branch ?? 'this branch'}</div>
-            <div className="mx-auto mt-1 mb-5 max-w-[260px] text-[12.5px] text-white/45">The session opens one as a draft, using the repo's PR template and its harness rules.</div>
-            <Button tone="primary" onClick={() => ask("Open a draft PR for this branch. Follow the repo's PR template (.github/pull_request_template.md) and this project's harness rules for PR bodies and screenshots.")}>
+            <div className="mx-auto mt-1 mb-5 max-w-[260px] text-[12.5px] text-white/45">The session opens one as a draft, using the repo's PR template if it has one.</div>
+            <Button tone="primary" onClick={() => ask('prDraft', { branch: s.branch ?? 'this branch' })}>
               <GitPullRequestDraft size={14} /> Draft PR
             </Button>
           </div>
@@ -103,7 +104,7 @@ export function PrPanel({ s, tileId, onClose }: { s: Session; tileId: string; on
             )}
 
             <div className="grid grid-cols-2 gap-2">
-              <Button tone="soft" size="sm" onClick={() => ask('update the pr body')}>
+              <Button tone="soft" size="sm" onClick={() => ask('prBody', { pr: pr.number, base: pr.base, head: pr.head })}>
                 <FilePen size={12} /> Update body
               </Button>
               <Button
@@ -117,7 +118,7 @@ export function PrPanel({ s, tileId, onClose }: { s: Session; tileId: string; on
               >
                 <Camera size={12} /> Retake screenshots
               </Button>
-              <Button tone="soft" size="sm" onClick={() => ask(`Look at the review comments and failing checks on PR #${pr.number} and address them.`)}>
+              <Button tone="soft" size="sm" onClick={() => ask('prFeedback', { pr: pr.number })}>
                 Address feedback
               </Button>
               <Button tone="soft" size="sm" onClick={() => orch.invoke('shell:openExternal', pr.url)}>

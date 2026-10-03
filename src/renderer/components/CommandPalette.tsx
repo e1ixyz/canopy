@@ -22,6 +22,7 @@ import { orch } from '../lib/orch'
 import { searchAll, submitPrompt } from '../lib/terms'
 import { cx, fuzzy } from '../lib/util'
 import { tileForSession, useApp } from '../store/app'
+import { freshHandoff } from './TileChips'
 import { Modal } from './ui'
 
 interface Cmd {
@@ -82,7 +83,7 @@ function Body() {
             setTimeout(() => st.set({ shotSet: { sessionId: activeSession.id, tileId: activeTile.id } }), 400)
           },
         },
-        { id: 'fresh', group: 'This tile', label: 'Fresh session with handoff', icon: <Sparkles size={14} />, run: () => orch.invoke('handoff:toNew', activeSession.id) },
+        { id: 'fresh', group: 'This tile', label: 'Fresh session with handoff', icon: <Sparkles size={14} />, run: () => freshHandoff(activeSession) },
         { id: 'clear', group: 'This tile', label: 'Clear context (/clear)', icon: <TerminalSquare size={14} />, run: () => submitPrompt(activeSession.id, '/clear') },
         { id: 'preview', group: 'This tile', label: `Toggle preview for ${activeSession.name}`, hint: '⌘⇧P', icon: <Globe size={14} />, run: () => st.togglePreview(activeTile.id) },
         {

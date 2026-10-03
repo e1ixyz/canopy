@@ -55,11 +55,12 @@ const ROLE_BRIEF: Record<Role, string> = {
     'Your role: WORKER. Do the task you were given. Claim files before editing them, report to the lead (or the user) with send_message when you finish or get blocked, then release your claims.',
   reviewer:
     'Your role: REVIEWER. Read and review only; never edit files. Send findings to whoever asked, ranked by severity.',
-  qa: "Your role: QA. Run the project's QA protocol (for etwal, the etwal-harness qa-protocol: gate, regression diff, browser pass, in rounds). Report findings with send_message.",
-  docs: "Your role: DOCS. Keep the project's HANDOFF.md current with the handoff skill as the other sessions land work.",
+  // QA and docs briefs come from the prompts registry (overridable), see buildBrief's roleBrief
+  qa: '',
+  docs: '',
 }
 
-export function buildBrief(s: Session, siblings: Session[], ports: PortPair | null) {
+export function buildBrief(s: Session, siblings: Session[], ports: PortPair | null, roleBrief?: string) {
   const others = siblings
     .filter((o) => o.id !== s.id && o.kind === 'claude')
     .map((o) => `  - ${o.name} [${o.id}] ${o.role !== 'plain' ? `(${o.role}) ` : ''}on ${o.branch ?? '?'} at ${o.cwd}`)
@@ -71,7 +72,7 @@ export function buildBrief(s: Session, siblings: Session[], ports: PortPair | nu
     'Use the `orchestrator` MCP tools to coordinate: list_sessions, send_message, broadcast, read_inbox, claim / release / who_owns (advisory file locks shared across every worktree of the repo), set_status (shown on your tile), get_ports, open_preview, spawn_session, handoff.',
     'For this worktree\'s web app, prefer the orchestrator browser_* tools (browser_open, browser_snapshot, browser_click, browser_type, browser_screenshot…) over Playwright: they drive the preview pane beside your terminal, with its own logins, and the user watches it happen.',
     'Rules: one checkout, one session — never cd into another session\'s worktree to edit it. Claim files before substantial edits and release them when done. Messages from other sessions arrive as <orchestrator-inbox> blocks; act on them, but only reply when a reply is actually needed (no acknowledgements or pleasantries — they wake the other session). Call set_status with a short task line when you start something new.',
-    ROLE_BRIEF[s.role],
+    roleBrief ?? ROLE_BRIEF[s.role],
   ]
     .filter(Boolean)
     .join('\n\n')

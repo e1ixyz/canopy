@@ -50,7 +50,7 @@ const SECTIONS: Section[] = [
     blocks: [
       { p: 'The launcher lists every folder you have used Claude Code in, newest first, pulled from ~/.claude/history.jsonl. Type to filter, press Enter to open the top match, or use Open folder for something new. Pin the projects you live in so they stay on top.' },
       { p: 'Opening a project creates a page named after it and starts a Claude session in the project root. If another session already works there, you get the new-session sheet instead, pointed at a fresh worktree.' },
-      { p: 'Every tile is the real claude CLI. Slash commands, your skills (/handoff, /ship, etwal-harness), plugins, hooks, MCP servers, plan mode and /resume all behave the way they do in your terminal. The app adds a bus, ports and a browser around it.' },
+      { p: 'Every tile is the real claude CLI. Slash commands, your own skills, plugins, hooks, MCP servers, plan mode and /resume all behave the way they do in your terminal. The app adds a bus, ports and a browser around it.' },
       { list: ['⌘T starts another session on the current project.', '⌘⇧T starts one in a new worktree.', '⌘O goes back to the launcher. Your pages keep running behind it.'] },
     ],
   },
@@ -82,8 +82,8 @@ const SECTIONS: Section[] = [
         'Lead breaks work into tasks and spawns workers in their own worktrees.',
         'Worker does one task, claims its files and reports back.',
         'Reviewer starts in plan mode and never edits.',
-        'QA runs the project QA protocol (the etwal-harness rounds, in etwal).',
-        'Docs keeps HANDOFF.md current with the handoff skill.',
+        'QA runs the project’s checks, reads the diff and drives the preview, then reports. Its brief is a prompt you can change (Settings → Prompts, or an adapter).',
+        'Docs keeps HANDOFF.md current as other sessions land work.',
       ] },
       { p: 'The tile menu has Restart (resume), Update HANDOFF.md, Hand off to a fresh session, Start dev server, Shell here and Reveal in Finder. A crashed or exited session shows a Resume button over its terminal.' },
     ],
@@ -186,7 +186,7 @@ const SECTIONS: Section[] = [
     blocks: [
       { p: 'Goal… in the tile menu takes a goal, a stop condition and a round cap. The session works a round and reports with goal_report. If it claims done, a QA sibling starts in the same checkout, checks the work and answers with goal_verdict. A clean verdict marks the goal met. Problems go back to the worker as the next round. The goal chip on the header shows the round, and its popover lists every round with QA’s findings.' },
       { p: 'QA and reviewer sessions are read-only, and the app enforces it: their edits are blocked by a hook, not just discouraged in the prompt.' },
-      { p: 'Ship… lists every changed file in the worktree and who it belongs to. A file is yours if you edited it. It belongs to a sibling session in the same checkout if that session edited or claimed it. Your files start checked. Ask owner messages a sibling over the bus. Ship hands the exact file list to your /ship skill with push, staging, prod or both.' },
+      { p: 'Ship… lists every changed file in the worktree and who it belongs to. A file is yours if you edited it. It belongs to a sibling session in the same checkout if that session edited or claimed it. Your files start checked. Ask owner messages a sibling over the bus. Ship asks the session to commit only those files and push. Point the Ship prompt at your own skill in Settings → Prompts; if it uses {target}, the sheet also offers staging, prod or both.' },
     ],
   },
   {
@@ -251,7 +251,7 @@ const SECTIONS: Section[] = [
     icon: <Plug size={15} />,
     blurb: 'Teach the app a repo’s own worktree and dev-server scripts.',
     blocks: [
-      { p: 'A repo with its own tooling can ship a .orchestrator.json at its root. The built-in etwal adapter routes worktree creation through scripts/new-worktree.sh and dev servers through .wt-run.sh. When that script hands out ports another worktree already claims, the app moves the new tree to a free pair.' },
+      { p: 'A repo with its own tooling can ship a .orchestrator.json at its root, or you can keep adapters for repos you don’t control in ~/.orchestrator/adapters (Settings → Open folder; match is a path prefix and may start with ~/). An adapter can route worktree creation and dev servers through the repo’s scripts, add tile actions and a badge, and override any prompt. When a create script hands out ports another worktree already claims, the app moves the new tree to a free pair. examples/adapter.example.json documents every field.' },
       { code: `{
   "worktree": {
     "create": "scripts/new-worktree.sh {branch} {base}",
@@ -272,7 +272,7 @@ const SECTIONS: Section[] = [
     blocks: [
       { list: [
         'A session will not resume: Claude only writes a transcript after the first message, so a never-used session starts fresh with the same id instead.',
-        'Login answers 403 on a worktree port: the app needs TRUSTED_ORIGINS for that port. The etwal adapter’s .wt-run.sh sets it. For other repos, add it to the worktree’s .env.',
+        'Login answers 403 on a worktree port: the app needs TRUSTED_ORIGINS for that port. An adapter’s run script can set it; otherwise add it to the worktree’s .env.',
         'A port shows under the wrong tile: two processes share a working directory. Start the server from the tile that owns it, or use Start dev server.',
         'No notifications: turn them on in Settings and allow Orchestrator in System Settings › Notifications.',
         'After changing the app’s code, run bun run install-app in the project. It rebuilds, re-signs and refreshes the Desktop alias.',

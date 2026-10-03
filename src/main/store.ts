@@ -16,6 +16,7 @@ const empty = (): AppState => ({
   reservations: {},
   settings: { ...DEFAULT_SETTINGS },
   shotSets: {},
+  deployTargets: {},
 })
 
 let state: AppState = empty()

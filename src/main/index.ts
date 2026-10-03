@@ -8,6 +8,7 @@ import type { EventMap, InvokeMap, SendMap } from '@shared/ipc'
 import { startBusServer } from './bus/server'
 import { Hub } from './hub'
 import { getPr } from './pr'
+import { ensureDir, orchHome } from './paths'
 import { listRecents, listTranscripts } from './recents'
 import { getState, loadState, saveState } from './store'
 import { conflicts, branches, gitStatus, isGitRepo, listWorktrees } from './worktree/git'
@@ -27,8 +28,6 @@ function handle<K extends keyof InvokeMap>(ch: K, fn: (...args: Parameters<Invok
 function on<K extends keyof SendMap>(ch: K, fn: (...args: Parameters<SendMap[K]>) => void) {
   ipcMain.on(ch, (_e, ...args) => fn(...(args as Parameters<SendMap[K]>)))
 }
-
-const resourcesDir = () => (app.isPackaged ? process.resourcesPath : app.getAppPath())
 
 function createWindow() {
   win = new BrowserWindow({
@@ -134,13 +133,11 @@ function registerIpc() {
   })
   handle('shell:reveal', (p) => shell.showItemInFolder(p))
   handle('dev:start', (cwd, projectPath) => hub.startDev(cwd, projectPath))
-  handle('handoff:toNew', (id) => {
-    hub.allowHandoff(id)
-    hub.write(
-      id,
-      '\x1b[200~Write a handoff so a fresh session can continue this work: goal, current state, decisions and why, ordered next steps, anchors (branches, worktree paths, PRs, ports, key files) and resume commands, in the handoff-chat format. Print it as your final message. Do not save a file and do not call any tools.\x1b[201~',
-    )
-    setTimeout(() => hub.write(id, '\r'), 120)
+  handle('handoff:toNew', (id) => hub.requestHandoff(id))
+  handle('prompts:get', (id, key, vars) => hub.prompt(id, key, vars))
+  handle('prompts:shipTargets', (id) => hub.shipTargets(id))
+  handle('adapters:openFolder', () => {
+    shell.openPath(ensureDir(orchHome('adapters')))
   })
   handle('spawn:confirm', (rid, ok) => hub.confirmSpawn(rid, ok))
   handle('session:ack', (id) => hub.ack(id))
@@ -199,7 +196,7 @@ if (process.env.ORCH_USER_DATA) {
 
 app.whenReady().then(async () => {
   loadState()
-  hub = new Hub(emit, join(resourcesDir(), 'adapters'))
+  hub = new Hub(emit, ensureDir(orchHome('adapters')))
   hub.onAttention = (s, text) => {
     if (!getState().settings.notifications || win?.isFocused()) return
     const n = new Notification({ title: `${s.name} · ${basename(s.cwd)}`, body: text, silent: false })
@@ -217,7 +214,8 @@ app.whenReady().then(async () => {
   registerIpc()
   hub.watcher.start()
   createWindow()
-  if (!app.isPackaged || process.env.ORCH_DEBUG_PORT) startDebugServer()
+  // Compiled out of release builds; ORCH_DEBUG_BUILD=1 keeps it (install-app.sh does).
+  if (__DEBUG_SERVER__ && (!app.isPackaged || process.env.ORCH_DEBUG_PORT)) startDebugServer()
 
   const onPage = new Set(getState().pages.flatMap((p) => p.tiles.map((t) => t.sessionId)))
   hub.restore(onPage)
@@ -238,7 +236,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-/** Dev-only: lets tooling screenshot the window and drive the renderer */
+/** Debug builds only: lets tooling screenshot the window and drive the renderer */
 function startDebugServer() {
   createServer(async (req, res) => {
     try {

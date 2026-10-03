@@ -17,6 +17,7 @@ import {
   type SpawnRequest,
   type UsageSnapshot,
 } from '@shared/types'
+import { resolvePrompt, shipHasTargets, type PromptKey } from '@shared/prompts'
 import { Bus } from './bus/bus'
 import { BrowserBridge } from './browser'
 import { loginEnv, resolveClaude, runCommand, shTry } from './env'
@@ -90,7 +91,7 @@ export class Hub {
 
   constructor(
     private emit: Emit,
-    builtinDir: string,
+    adaptersDir: string,
   ) {
     const st = getState()
     for (const s of st.sessions) {
@@ -113,7 +114,7 @@ export class Hub {
         saveState()
       },
       listening: () => this.watcher.listening,
-      builtinDir,
+      adaptersDir,
     })
     this.watcher = new PortWatcher(
       () =>
@@ -282,7 +283,9 @@ export class Hub {
       const files = writeSessionFiles(sessionDir(id), this.baseUrl, id, proc.token)
       // Only resume when Claude actually wrote a transcript; --resume on an empty id fails.
       const resume = existsSync(transcriptPath(s.cwd, id))
-      const brief = buildBrief(s, this.list().filter((o) => o.status !== 'exited'), ports)
+      const roleKey = s.role === 'qa' ? 'qaBrief' : s.role === 'docs' ? 'docsBrief' : null
+      const roleBrief = roleKey ? await this.prompt(id, roleKey) : undefined
+      const brief = buildBrief(s, this.list().filter((o) => o.status !== 'exited'), ports, roleBrief)
       file = await resolveClaude()
       args = [
         ...(resume ? ['--resume', id] : ['--session-id', id]),
@@ -619,6 +622,28 @@ export class Hub {
   confirmSpawn(requestId: string, ok: boolean) {
     this.pendingSpawns.get(requestId)?.(ok)
     this.pendingSpawns.delete(requestId)
+  }
+
+  // ---------- prompts ----------
+
+  /** A prompt for this session: settings override, then the repo's adapter, then the default */
+  async prompt(id: string, key: PromptKey, vars: Record<string, string | number | undefined> = {}) {
+    const s = this.sessions.get(id)
+    const a = s ? await this.adapterFor(s) : null
+    return resolvePrompt(key, { settings: getState().settings.prompts, adapter: a?.prompts }, vars)
+  }
+
+  async shipTargets(id: string) {
+    const s = this.sessions.get(id)
+    const a = s ? await this.adapterFor(s) : null
+    return shipHasTargets({ settings: getState().settings.prompts, adapter: a?.prompts })
+  }
+
+  /** Ask the session for a handoff; the next Stop collects it from the transcript */
+  async requestHandoff(id: string) {
+    const text = await this.prompt(id, 'handoff')
+    this.allowHandoff(id)
+    this.typePrompt(id, text)
   }
 
   /** The user asked for this handoff from the tile menu, so its successor needs no confirm */

@@ -1,9 +1,10 @@
 #!/bin/bash
 # Build Orchestrator.app, install it to ~/Applications (outside iCloud, so it can be
-# signed), ad-hoc sign it, and put an alias on the Desktop.
+# signed), ad-hoc sign it, and put an alias on the Desktop. This personal build keeps the
+# debug server (ORCH_DEBUG_PORT) for the test harness; `bun run dist` leaves it out.
 set -e
 cd "$(dirname "$0")/.."
-npx electron-vite build
+ORCH_DEBUG_BUILD=1 npx electron-vite build
 rm -rf dist
 npx electron-builder --mac --dir
 DEST="$HOME/Applications/Orchestrator.app"

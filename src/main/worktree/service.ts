@@ -10,7 +10,7 @@ export interface WorktreeDeps {
   reservations: () => Record<string, PortPair>
   reserve: (path: string, ports: PortPair | null) => void
   listening: () => Set<number>
-  builtinDir: string
+  adaptersDir: string
 }
 
 const read = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8') : '')
@@ -20,7 +20,7 @@ export class WorktreeService {
 
   async adapter(projectPath: string): Promise<Adapter | null> {
     const root = await primaryRoot(projectPath)
-    return resolveAdapter(root, projectPath, this.deps.builtinDir)
+    return resolveAdapter(root, projectPath, this.deps.adaptersDir)
   }
 
   /** Ports a worktree uses: our reservation, else what its env files claim */

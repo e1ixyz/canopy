@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Adapter } from '@shared/types'
 
@@ -42,32 +43,46 @@ export function fill(template: string, vars: Record<string, string | number | un
   return out
 }
 
-let builtins: Adapter[] | null = null
+const tilde = (p?: string) => (p?.startsWith('~/') ? join(homedir(), p.slice(2)) + (p.endsWith('/') ? '/' : '') : p)
 
-export function loadBuiltinAdapters(dir: string): Adapter[] {
-  if (builtins) return builtins
-  builtins = []
-  if (!existsSync(dir)) return builtins
+/** `match` and `primary` may start with ~/ so adapters stay portable */
+export function expandHome(a: Adapter): Adapter {
+  return { ...a, match: tilde(a.match), primary: tilde(a.primary) }
+}
+
+let cache: { dir: string; mtime: number; list: Adapter[] } | null = null
+
+/** Adapters in the user's adapters folder, re-read whenever the folder changes */
+export function loadUserAdapters(dir: string): Adapter[] {
+  let mtime = 0
+  try {
+    mtime = statSync(dir).mtimeMs
+  } catch {
+    return []
+  }
+  if (cache && cache.dir === dir && cache.mtime === mtime) return cache.list
+  const list: Adapter[] = []
   for (const f of readdirSync(dir)) {
     if (!f.endsWith('.json')) continue
     try {
-      builtins.push(JSON.parse(readFileSync(join(dir, f), 'utf8')))
+      list.push(expandHome(JSON.parse(readFileSync(join(dir, f), 'utf8'))))
     } catch {
       /* ignore broken adapter files */
     }
   }
-  return builtins
+  cache = { dir, mtime, list }
+  return list
 }
 
-/** A repo's own `.orchestrator.json` wins over a built-in match */
-export function resolveAdapter(primaryRoot: string, projectPath: string, builtinDir: string): Adapter | null {
+/** A repo's own `.orchestrator.json` wins over a match in the user's adapters folder */
+export function resolveAdapter(primaryRoot: string, projectPath: string, userDir: string): Adapter | null {
   const local = join(primaryRoot, '.orchestrator.json')
   if (existsSync(local)) {
     try {
       return { primary: primaryRoot, ...JSON.parse(readFileSync(local, 'utf8')) }
     } catch {
-      /* fall through to built-ins */
+      /* fall through to the user's adapters */
     }
   }
-  return matchAdapter(projectPath, loadBuiltinAdapters(builtinDir))
+  return matchAdapter(projectPath, loadUserAdapters(userDir))
 }

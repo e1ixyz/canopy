@@ -5,9 +5,6 @@ directories:
 files:
   - out/**
   - package.json
-extraResources:
-  - from: adapters
-    to: adapters
 asarUnpack:
   - node_modules/node-pty/**
 mac:
@@ -15,3 +12,6 @@ mac:
   target: dir
   identity: null
   icon: build/icon.icns
+dmg:
+  artifactName: ${productName}-${version}-${arch}.dmg
+afterPack: scripts/after-pack.cjs

@@ -305,7 +305,7 @@ function buildMcp(hub: Hub, sid: string) {
     'handoff',
     {
       description:
-        'Hand your work off. With `to`, sends the summary to that session as a HANDOFF and wakes it. Without `to`, asks the user to start a fresh session in your worktree seeded with the summary (use the handoff-chat skill to write it).',
+        'Hand your work off. With `to`, sends the summary to that session as a HANDOFF and wakes it. Without `to`, asks the user to start a fresh session in your worktree seeded with the summary. Write the summary as: goal, state, decisions with reasons, ordered next steps, anchors (branches, paths, PRs, ports, key files) and resume commands.',
       inputSchema: { summary: z.string(), to: z.string().optional() },
     },
     async ({ summary, to }) => {

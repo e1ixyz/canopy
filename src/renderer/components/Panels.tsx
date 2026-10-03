@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { FolderOpen, GitBranch, Loader2, Megaphone, Play, RefreshCw, Sparkles, Stethoscope, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { DEFAULT_PROMPTS, PROMPT_INFO, PROMPT_KEYS, type PromptKey } from '@shared/prompts'
 import type { Adapter, GitStatus, Worktree } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
@@ -12,8 +13,8 @@ import { Button, Field, inputCls, Modal, Segmented, Toggle } from './ui'
 export function SettingsPanel() {
   const { settingsOpen, set, settings, updateSettings } = useApp()
   return (
-    <Modal open={settingsOpen} onClose={() => set({ settingsOpen: false })} width={520}>
-      <div className="space-y-6 p-6">
+    <Modal open={settingsOpen} onClose={() => set({ settingsOpen: false })} width={560}>
+      <div className="scroll-thin max-h-[85vh] space-y-6 overflow-y-auto p-6">
         <div>
           <div className="text-[16px] font-semibold tracking-tight">Settings</div>
           <div className="text-[12px] text-white/45">Applies to new sessions and bus traffic.</div>
@@ -59,8 +60,55 @@ export function SettingsPanel() {
             </select>
           </Field>
         </div>
+        <PromptSettings />
+        <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+          <div className="flex-1 text-[12px] text-white/50">
+            Adapters teach the app a repo's scripts, ports and prompts. Put them in <span className="font-mono text-white/70">~/.orchestrator/adapters</span>, or a repo's own <span className="font-mono text-white/70">.orchestrator.json</span>.
+          </div>
+          <Button size="sm" onClick={() => orch.invoke('adapters:openFolder')}>
+            <FolderOpen size={12} /> Open folder
+          </Button>
+        </div>
       </div>
     </Modal>
+  )
+}
+
+/** One textarea per app prompt; empty means the default (shown as the placeholder) */
+function PromptSettings() {
+  const { settings, updateSettings } = useApp()
+  const [open, setOpen] = useState<PromptKey | null>(null)
+  const set = (k: PromptKey, v: string) => updateSettings({ prompts: { ...settings.prompts, [k]: v || undefined } })
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-semibold tracking-wider text-white/45 uppercase">Prompts</div>
+      <div className="mb-2 text-[11.5px] text-white/40">What the app types into sessions. Point one at your own skill (for example /ship{'{target}'}) or leave it empty for the default.</div>
+      <div className="space-y-1">
+        {PROMPT_KEYS.map((k) => {
+          const custom = !!settings.prompts?.[k]?.trim()
+          return (
+            <div key={k} className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
+              <button type="button" onClick={() => setOpen(open === k ? null : k)} className="no-drag flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] text-white/80">
+                <span className="flex-1">{PROMPT_INFO[k].label}</span>
+                {custom && <span className="rounded-md bg-violet-400/15 px-1.5 py-0.5 text-[10.5px] text-violet-200">custom</span>}
+                {PROMPT_INFO[k].vars && <span className="font-mono text-[10.5px] text-white/30">{PROMPT_INFO[k].vars}</span>}
+              </button>
+              {open === k && (
+                <div className="px-3 pb-3">
+                  <textarea
+                    value={settings.prompts?.[k] ?? ''}
+                    onChange={(e) => set(k, e.target.value)}
+                    placeholder={DEFAULT_PROMPTS[k]}
+                    rows={5}
+                    className={cx(inputCls, 'resize-y font-mono text-[11.5px] leading-relaxed')}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

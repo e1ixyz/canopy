@@ -176,9 +176,11 @@ export function GoalChip({ s }: { s: Session }) {
   )
 }
 
+export function freshHandoff(s: Session) {
+  orch.invoke('handoff:toNew', s.id)
+  useApp.getState().toast('Writing a handoff; a fresh session will take over this tile', 'info')
+}
+
 export function useFreshHandoff() {
-  return (s: Session) => {
-    orch.invoke('handoff:toNew', s.id)
-    useApp.getState().toast('Writing a handoff; a fresh session will take over this tile', 'info')
-  }
+  return freshHandoff
 }
