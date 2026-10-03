@@ -3,6 +3,7 @@ import {
   Archive,
   Cloud,
   Database,
+  Palette,
   PanelRight,
   ArchiveX,
   Camera,
@@ -43,6 +44,7 @@ import { cx, tildify } from '../lib/util'
 import { useApp } from '../store/app'
 import { PreviewPane } from './PreviewPane'
 import { PrPanel } from './PrPanel'
+import { DesignView } from './DesignView'
 import { DbPanel, DeployPanel } from './SidePanels'
 import { BadgeChip, GoalChip, ModeChips, saveHandoff, useFreshHandoff } from './TileChips'
 import { TerminalView } from './TerminalView'
@@ -312,8 +314,16 @@ export const Tile = memo(function Tile({
           transition={spring.layout}
           style={{ flexGrow: 0, flexShrink: side ? 1 : 0 }}
         >
-          <TerminalView sessionId={s.id} visible tileId={tile.id} />
-          <ExitedOverlay s={s} />
+          {s.kind === 'design' ? (
+            <div className="absolute inset-0 flex flex-col">
+              <DesignView s={s} />
+            </div>
+          ) : (
+            <>
+              <TerminalView sessionId={s.id} visible tileId={tile.id} />
+              <ExitedOverlay s={s} />
+            </>
+          )}
         </motion.div>
         <AnimatePresence>
           {side && s.kind === 'db' && <DbPanel key="db" s={s} projectPath={project?.path ?? s.cwd} />}
@@ -511,6 +521,7 @@ function TileMenu({
           }
         })}
       {repo && item(<TermIcon size={13} />, 'Shell here', () => useApp.getState().spawn({ kind: 'shell', projectPath, cwd: s.cwd }))}
+      {claude && item(<Palette size={13} />, 'Open design beside…', () => set({ designFor: s.id }))}
       {repo && item(<Database size={13} />, 'Database console here', () => openDb(s.cwd, projectPath))}
       {repo && item(<Cloud size={13} />, 'Railway logs & variables', () => openDeploy(s.cwd, projectPath))}
       {item(<FolderOpen size={13} />, 'Reveal in Finder', () => orch.invoke('shell:reveal', s.cwd))}

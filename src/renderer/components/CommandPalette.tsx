@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Archive,
+  Palette,
   Cloud,
   Database,
   Server,
@@ -108,6 +109,7 @@ function Body() {
         { id: 'save-handoff', group: 'This tile', label: 'Save handoff for later', icon: <Archive size={14} />, run: () => saveHandoff(activeSession) },
         { id: 'db', group: 'This tile', label: 'Database console for this checkout', icon: <Database size={14} />, run: () => openDb(activeSession.cwd, projectPath ?? activeSession.cwd) },
         { id: 'railway', group: 'This tile', label: 'Railway logs & variables', icon: <Cloud size={14} />, run: () => openDeploy(activeSession.cwd, projectPath ?? activeSession.cwd) },
+        { id: 'design', group: 'This tile', label: 'Open a design beside this tile…', icon: <Palette size={14} />, run: () => st.set({ designFor: activeSession.id }) },
         { id: 'clear', group: 'This tile', label: 'Clear context (/clear)', icon: <TerminalSquare size={14} />, run: () => submitPrompt(activeSession.id, '/clear') },
         { id: 'preview', group: 'This tile', label: `Toggle preview for ${activeSession.name}`, hint: '⌘⇧P', icon: <Globe size={14} />, run: () => st.togglePreview(activeTile.id) },
         {

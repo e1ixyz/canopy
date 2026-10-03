@@ -1,4 +1,6 @@
+import { AnnotateSheet } from './components/AnnotateSheet'
 import { DeploySetupSheet } from './components/DeploySetup'
+import { DesignSheet } from './components/DesignView'
 import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'motion/react'
 import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -122,6 +124,8 @@ export function App() {
         <GoalSheet />
         <ShipSheet />
         <DeploySetupSheet />
+        <AnnotateSheet />
+        <DesignSheet />
         <SettingsPanel />
         <BroadcastSheet />
         <WorktreesPanel />

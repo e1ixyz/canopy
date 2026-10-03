@@ -25,7 +25,7 @@ import { useApp } from '../store/app'
 import { TerminalView } from './TerminalView'
 import { IconButton } from './ui'
 
-type WebviewEl = HTMLElement & {
+export type WebviewEl = HTMLElement & {
   loadURL: (u: string) => Promise<void>
   getURL: () => string
   goBack: () => void
@@ -159,6 +159,17 @@ export function PreviewPane({
     view.current?.loadURL(u).catch(() => {})
   }
 
+  const markUp = async () => {
+    const w = view.current
+    if (!w) return
+    try {
+      const image = await orch.invoke('preview:capture', w.getWebContentsId())
+      useApp.getState().set({ annotate: { sessionId: session.id, image, label: session.name } })
+    } catch (e) {
+      toast((e as Error).message, 'error')
+    }
+  }
+
   const shot = async (toSession: boolean) => {
     const w = view.current
     if (!w) return
@@ -284,7 +295,10 @@ export function PreviewPane({
         <IconButton title={`Color scheme: ${scheme ?? 'page default'}`} onClick={toggleScheme} active={scheme !== null}>
           {scheme === 'light' ? <Sun size={13} /> : <Moon size={13} />}
         </IconButton>
-        <IconButton title="Screenshot to ~/Desktop (⇧-click: paste path into the session)" onClick={(e) => shot(e.shiftKey)}>
+        <IconButton
+          title="Screenshot and mark it up (⌥-click: just save to ~/Desktop, ⇧-click: save and paste the path)"
+          onClick={(e) => (e.altKey || e.shiftKey ? shot(e.shiftKey) : markUp())}
+        >
           <Camera size={13} />
         </IconButton>
         <IconButton title="Screenshot set: numbered full-page captures of several routes" onClick={() => useApp.getState().set({ shotSet: { sessionId: session.id, tileId: tile.id } })}>

@@ -106,6 +106,7 @@ export interface InvokeMap {
   'deploy:vars': (sessionId: string, envFile?: string) => VarRow[]
   'deploy:reveal': (sessionId: string, key: string) => { local?: string; remote?: string } | null
   'deploy:ssh': (sessionId: string) => Session
+  'preview:capture': (webContentsId: number) => string
 }
 
 /** renderer -> main fire-and-forget */

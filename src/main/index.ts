@@ -210,6 +210,11 @@ function registerIpc() {
     writeFileSync(file, img.toPNG())
     return file
   })
+  handle('preview:capture', async (wcId) => {
+    const wc = webContents.fromId(wcId)
+    if (!wc) throw new Error('Preview is gone')
+    return (await wc.capturePage()).toDataURL()
+  })
   handle('preview:emulate', async (wcId, scheme) => {
     const wc = webContents.fromId(wcId)
     if (!wc) return

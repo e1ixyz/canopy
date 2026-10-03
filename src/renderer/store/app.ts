@@ -75,6 +75,10 @@ interface AppStore {
   prFor: string | null
   /** the Railway setup sheet; sessionId set means re-pointing an existing deploy tile */
   deploySetup: { cwd: string; projectPath: string; sessionId?: string } | null
+  /** the design-URL sheet, opened beside this session */
+  designFor: string | null
+  /** a capture being marked up before it goes to a session */
+  annotate: { sessionId: string; image: string; label: string } | null
   newSession: NewSessionOpts | null
   selected: string[]
   confirms: Confirm[]
@@ -89,6 +93,8 @@ interface AppStore {
   openProject: (path: string) => Promise<void>
   spawn: (req: SpawnRequest, pageId?: string) => Promise<Session | null>
   addTile: (sessionId: string, pageId?: string) => void
+  /** put a new tile right after another session's tile (same page), or at the end */
+  addTileAfter: (sessionId: string, afterSessionId?: string) => void
   closeTile: (tileId: string) => Promise<void>
   moveTile: (tileId: string, toPageId: string) => void
   swapTiles: (a: string, b: string) => void
@@ -165,6 +171,8 @@ export const useApp = create<AppStore>((set, get) => ({
   shipFor: null,
   prFor: null,
   deploySetup: null,
+  designFor: null,
+  annotate: null,
   newSession: null,
   selected: [],
   confirms: [],
@@ -304,6 +312,20 @@ export const useApp = create<AppStore>((set, get) => ({
     updatePages((pages) => pages.map((p) => (p.id === target ? { ...p, tiles: [...p.tiles, tile], focusedTileId: p.focusedTileId ? tile.id : p.focusedTileId } : p)))
     set({ activePageId: target, activeTileId: tile.id, view: 'workspace' })
     setTimeout(() => focusTerm(sessionId), 350)
+  },
+
+  addTileAfter: (sessionId, afterSessionId) => {
+    const hit = afterSessionId ? tileForSession(get().pages, afterSessionId) : null
+    if (!hit) return get().addTile(sessionId)
+    const tile: Tile = { id: nanoid(8), sessionId }
+    updatePages((pages) =>
+      pages.map((p) => {
+        if (p.id !== hit.page.id) return p
+        const i = p.tiles.findIndex((t) => t.id === hit.tile.id)
+        return { ...p, tiles: [...p.tiles.slice(0, i + 1), tile, ...p.tiles.slice(i + 1)] }
+      }),
+    )
+    set({ activePageId: hit.page.id, activeTileId: tile.id, view: 'workspace' })
   },
 
   closeTile: async (tileId) => {
