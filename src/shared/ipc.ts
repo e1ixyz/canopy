@@ -3,6 +3,8 @@ import type {
   Adapter,
   AdapterAction,
   HandoffMeta,
+  HostEntry,
+  SkillInfo,
   PortsSnapshot,
   PrInfo,
   ShipFile,
@@ -88,6 +90,8 @@ export interface InvokeMap {
   'handoffs:open': (file: string) => void
   'handoffs:import': (projectPath: string) => HandoffMeta | null
   'handoffs:pickUp': (file: string, original: boolean) => Session
+  'hosts:list': () => HostEntry[]
+  'skills:list': (cwd?: string) => SkillInfo[]
 }
 
 /** renderer -> main fire-and-forget */

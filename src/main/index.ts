@@ -8,8 +8,10 @@ import type { EventMap, InvokeMap, SendMap } from '@shared/ipc'
 import { startBusServer } from './bus/server'
 import { Hub } from './hub'
 import { getPr } from './pr'
+import { listHosts } from './hosts'
 import { ensureDir, orchHome } from './paths'
 import { listRecents, listTranscripts } from './recents'
+import { listSkills } from './skills'
 import { getState, loadState, saveState } from './store'
 import { conflicts, branches, gitStatus, isGitRepo, listWorktrees } from './worktree/git'
 
@@ -157,6 +159,8 @@ function registerIpc() {
     return h
   })
   handle('handoffs:pickUp', (file, original) => hub.pickUp(file, original))
+  handle('hosts:list', () => listHosts(getState().settings.hosts))
+  handle('skills:list', (cwd) => listSkills(cwd))
   handle('prompts:get', (id, key, vars) => hub.prompt(id, key, vars))
   handle('prompts:shipTargets', (id) => hub.shipTargets(id))
   handle('adapters:openFolder', () => {

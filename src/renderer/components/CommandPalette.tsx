@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
   Archive,
+  Server,
+  Wand2,
   ArrowRight,
   BookOpen,
   FolderOpen,
@@ -25,6 +27,8 @@ import { cx, fuzzy } from '../lib/util'
 import { tileForSession, useApp } from '../store/app'
 import { freshHandoff, saveHandoff } from './TileChips'
 import { Modal } from './ui'
+import type { HostEntry, SkillInfo } from '@shared/types'
+import { openHost, runSkill } from '../lib/tiles'
 
 interface Cmd {
   id: string
@@ -33,6 +37,13 @@ interface Cmd {
   icon: React.ReactNode
   group: string
   run: () => void
+}
+
+/** Skills match on a substring of the name (ranked), or of the description (after names) */
+function skillScore(query: string, c: Cmd) {
+  if (!query) return 1
+  const n = fuzzy(query, c.label.slice(1))
+  return n >= 2 ? n : (c.hint ?? '').toLowerCase().includes(query.toLowerCase()) ? 0.5 : 0
 }
 
 export function CommandPalette() {
@@ -54,6 +65,13 @@ function Body() {
   const activeTile = activePage?.tiles.find((t) => t.id === st.activeTileId)
   const activeSession = activeTile ? st.sessions[activeTile.sessionId] : undefined
   const projectPath = st.projects.find((p) => p.id === activeSession?.projectId)?.path ?? st.projects[0]?.path
+  const [hosts, setHosts] = useState<HostEntry[]>([])
+  const [skills, setSkills] = useState<SkillInfo[]>([])
+  useEffect(() => {
+    orch.invoke('hosts:list').then(setHosts)
+    orch.invoke('skills:list', activeSession?.kind === 'claude' ? activeSession.cwd : undefined).then(setSkills)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const commands = useMemo<Cmd[]>(() => {
     const c: Cmd[] = [
@@ -111,17 +129,38 @@ function Body() {
     }
     for (const r of st.recents.slice(0, 12))
       c.push({ id: `r-${r.path}`, group: 'Projects', label: r.name, hint: r.path, icon: <FolderOpen size={14} />, run: () => st.openProject(r.path) })
+    for (const h of hosts) {
+      c.push({ id: `h-${h.name}`, group: 'Hosts', label: `SSH to ${h.name}`, hint: h.target, icon: <Server size={14} />, run: () => openHost(h) })
+      c.push({ id: `hc-${h.name}`, group: 'Hosts', label: `Claude on ${h.name}`, hint: 'runs claude over ssh', icon: <Server size={14} />, run: () => openHost(h, true) })
+    }
     return c
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st.pages, st.sessions, st.recents, activeTile?.id, st.busOpen])
+  }, [st.pages, st.sessions, st.recents, activeTile?.id, st.busOpen, hosts])
+
+  const skillCmds = useMemo<Cmd[]>(
+    () =>
+      skills.map((k) => ({
+        id: `skill-${k.name}`,
+        group: 'Skills',
+        label: `/${k.name}`,
+        hint: k.description,
+        icon: <Wand2 size={14} />,
+        run: () => runSkill(k.name, activeSession?.id),
+      })),
+    [skills, activeSession?.id],
+  )
 
   const results = useMemo(() => {
-    const scored = commands
-      .map((c) => ({ c, s: fuzzy(q, `${c.label} ${c.hint ?? ''} ${c.group}`) }))
+    // Skills show once you type; a leading "/" searches only skills.
+    const slash = q.startsWith('/')
+    const query = slash ? q.slice(1) : q
+    const pool = slash ? skillCmds : q ? [...commands, ...skillCmds] : commands
+    const scored = pool
+      .map((c) => ({ c, s: c.group === 'Skills' ? skillScore(query, c) : fuzzy(q, `${c.label} ${c.hint ?? ''} ${c.group}`) }))
       .filter((x) => x.s > 0)
       .sort((a, b) => (q ? b.s - a.s : 0))
       .map((x) => x.c)
-    if (q.length >= 2) {
+    if (q.length >= 2 && !slash) {
       for (const hit of searchAll(q, 12)) {
         const s = st.sessions[hit.sessionId]
         if (!s) continue
@@ -136,7 +175,7 @@ function Body() {
       }
     }
     return scored.slice(0, 60)
-  }, [commands, q, st])
+  }, [commands, skillCmds, q, st])
 
   useEffect(() => {
     setIdx(0)
@@ -169,7 +208,7 @@ function Body() {
               }
             }
           }}
-          placeholder="Run a command, jump to a session, search all scrollback…"
+          placeholder="Run a command, jump to a session, search scrollback, / for skills…"
           className="h-14 flex-1 bg-transparent text-[15px] text-white placeholder-white/30 outline-none"
         />
         <kbd>esc</kbd>

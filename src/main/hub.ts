@@ -16,6 +16,7 @@ import {
   type Role,
   type Session,
   type SpawnRequest,
+  type TileTarget,
   type UsageSnapshot,
 } from '@shared/types'
 import { resolvePrompt, shipHasTargets, type PromptKey } from '@shared/prompts'
@@ -25,11 +26,13 @@ import { loginEnv, resolveClaude, runCommand, shTry } from './env'
 import { GoalController, type GoalStart } from './goal'
 import { HandoffShelf } from './handoffs'
 import { buildBrief, writeSessionFiles, type HookEvent } from './hooks/inject'
+import { readEnvFile } from './dotenv'
 import { orchHome } from './paths'
 import { PortWatcher } from './port-watcher'
 import { contextInfo, lastAssistantText, projectSlug } from './recents'
 import { changedFiles, classify } from './ship'
 import { getState, saveState, sessionDir } from './store'
+import { baseName, commandFor, TARGET_KINDS } from './tiles'
 import { UsageTracker, sumTotals } from './usage'
 import { fill } from './worktree/adapters'
 import { primaryRoot } from './worktree/git'
@@ -127,7 +130,7 @@ export class Hub {
     this.watcher = new PortWatcher(
       () =>
         [...this.sessions.values()]
-          .filter((s) => s.status !== 'exited')
+          .filter((s) => s.status !== 'exited' && s.kind !== 'design' && s.kind !== 'host')
           .map((s) => ({ id: s.id, pid: this.procs.get(s.id)?.pty?.pid, cwd: s.cwd })),
       (id, ports) => this.patch(id, { ports }),
       () => new Set([this.serverPort]),
@@ -188,8 +191,14 @@ export class Hub {
     return p
   }
 
-  private uniqueName(kind: Session['kind'], branch?: string) {
+  private uniqueName(kind: Session['kind'], branch?: string, target?: TileTarget) {
     const taken = new Set(this.list().map((s) => s.name))
+    if (target) {
+      const base = baseName(target, branch)
+      let n = base
+      for (let i = 2; taken.has(n); i++) n = `${base}-${i}`
+      return n
+    }
     if (kind === 'dev') {
       const base = `dev:${branch ?? 'server'}`
       let n = base
@@ -215,15 +224,17 @@ export class Hub {
   // ---------- spawn / lifecycle ----------
 
   async spawn(req: SpawnRequest): Promise<Session> {
-    const project = await this.openProject(req.projectPath)
-    const branch = (await shTry('git', ['rev-parse', '--abbrev-ref', 'HEAD'], req.cwd, 5000))?.trim()
-    const repo = await primaryRoot(req.cwd)
+    // Host tiles belong to no project; everything else opens (or creates) one.
+    const project = req.projectPath ? await this.openProject(req.projectPath) : null
+    const inRepo = req.kind !== 'host'
+    const branch = inRepo ? (await shTry('git', ['rev-parse', '--abbrev-ref', 'HEAD'], req.cwd, 5000))?.trim() : undefined
+    const repo = inRepo ? await primaryRoot(req.cwd) : undefined
     const id = req.resumeFrom ?? randomUUID()
     const s: Session = {
       id,
       kind: req.kind,
-      name: req.name?.trim() || this.uniqueName(req.kind, branch),
-      projectId: project.id,
+      name: req.name?.trim() || this.uniqueName(req.kind, branch, req.target),
+      projectId: project?.id ?? '',
       cwd: req.cwd,
       branch,
       repo,
@@ -236,6 +247,7 @@ export class Hub {
       ports: [],
       unread: 0,
       command: req.command,
+      target: req.target,
     }
     this.sessions.set(id, s)
     this.persist()
@@ -251,6 +263,8 @@ export class Hub {
       old.pty.kill()
       old.pty = undefined
     }
+    // A design tile is a webview in the renderer; there is no process behind it.
+    if (s.kind === 'design') return this.patch(id, { status: 'idle', exitCode: undefined })
     const env = { ...(await loginEnv()) }
     const wtRoot = (await shTry('git', ['rev-parse', '--show-toplevel'], s.cwd, 5000))?.trim() || s.cwd
     const ports = this.worktrees.portsFor(wtRoot)
@@ -309,6 +323,12 @@ export class Hub {
       // A positional prompt can land unsubmitted in the input box (multi-line ones do),
       // so hold it and paste it in once the session is up.
       if (prompt && !resume) proc.pendingPrompt = prompt
+    } else if (TARGET_KINDS.has(s.kind) && s.target) {
+      const dbUrl = s.target.kind === 'db' ? readEnvFile(join(s.cwd, s.target.envFile))[s.target.varName] : undefined
+      const c = commandFor(s.target, { dbUrl })
+      Object.assign(env, c.env)
+      file = env.SHELL || '/bin/zsh'
+      args = ['-lc', c.command]
     } else {
       file = env.SHELL || '/bin/zsh'
       args = s.kind === 'dev' && s.command ? ['-lc', s.command] : ['-l']

@@ -1,11 +1,13 @@
 import { motion } from 'motion/react'
-import { Archive, BookOpen, FolderOpen, GitBranch, LayoutGrid, Pin, PinOff, Search, Sparkles } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Archive, BookOpen, FolderOpen, GitBranch, LayoutGrid, Pin, PinOff, Search, Server, Sparkles, TerminalSquare } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type { HostEntry } from '@shared/types'
 import { orch } from '../lib/orch'
 import { spring } from '../lib/motion'
 import { cx, fuzzy, hashColor, tildify, timeAgo } from '../lib/util'
+import { openHost } from '../lib/tiles'
 import { useApp } from '../store/app'
-import { Button } from './ui'
+import { Button, IconButton } from './ui'
 
 interface Card {
   path: string
@@ -20,8 +22,12 @@ interface Card {
 }
 
 export function Launcher() {
-  const { recents, projects, sessions, pages, openProject, set } = useApp()
+  const { recents, projects, sessions, pages, openProject, set, settings } = useApp()
   const [q, setQ] = useState('')
+  const [hosts, setHosts] = useState<HostEntry[]>([])
+  useEffect(() => {
+    orch.invoke('hosts:list').then(setHosts)
+  }, [settings.hosts])
 
   const cards = useMemo(() => {
     const byPath = new Map<string, Card>()
@@ -104,10 +110,52 @@ export function Launcher() {
 
         <Section title="Pinned" cards={pinned} offset={0} />
         <Section title="Running now" cards={active} offset={pinned.length} />
+        <Hosts hosts={hosts.filter((h) => fuzzy(q, `${h.name} ${h.target ?? ''}`) > 0)} />
         <Section title="Recent" cards={rest} offset={pinned.length + active.length} />
         {!cards.length && <div className="py-20 text-center text-white/40">No projects match “{q}”.</div>}
       </div>
     </motion.div>
+  )
+}
+
+function Hosts({ hosts }: { hosts: HostEntry[] }) {
+  const { set } = useApp()
+  return (
+    <div className="mb-10">
+      <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold tracking-[0.14em] text-white/35 uppercase">
+        Hosts
+        <button onClick={() => set({ settingsOpen: true })} className="no-drag rounded-md px-1.5 py-0.5 text-[10.5px] tracking-normal text-white/35 normal-case hover:bg-white/[0.06] hover:text-white/70">
+          {hosts.length ? 'Add or edit…' : 'Add a host…'}
+        </button>
+      </div>
+      {hosts.length > 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
+          {hosts.map((h, i) => (
+            <motion.div
+              key={h.name}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...spring.bouncy, delay: Math.min(i * 0.03, 0.3) }}
+              className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3"
+            >
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200">
+                <Server size={15} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold text-white/90">{h.name}</div>
+                <div className="truncate font-mono text-[10.5px] text-white/35">{h.target || (h.source === 'ssh-config' ? 'ssh config' : h.name)}</div>
+              </div>
+              <IconButton title="Shell over ssh" onClick={() => openHost(h)}>
+                <TerminalSquare size={14} />
+              </IconButton>
+              <IconButton title="Run Claude on the host" onClick={() => openHost(h, true)}>
+                <Sparkles size={14} />
+              </IconButton>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

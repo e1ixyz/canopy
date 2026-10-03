@@ -60,6 +60,7 @@ export function SettingsPanel() {
             </select>
           </Field>
         </div>
+        <HostSettings />
         <PromptSettings />
         <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
           <div className="flex-1 text-[12px] text-white/50">
@@ -71,6 +72,50 @@ export function SettingsPanel() {
         </div>
       </div>
     </Modal>
+  )
+}
+
+/** Hosts beyond ~/.ssh/config, kept in app settings (the app never edits your ssh config) */
+function HostSettings() {
+  const { settings, updateSettings } = useApp()
+  const [name, setName] = useState('')
+  const [target, setTarget] = useState('')
+  const [fromConfig, setFromConfig] = useState<string[]>([])
+  useEffect(() => {
+    orch.invoke('hosts:list').then((h) => setFromConfig(h.filter((x) => x.source === 'ssh-config').map((x) => x.name)))
+  }, [])
+  const hosts = settings.hosts ?? []
+  const add = () => {
+    if (!name.trim()) return
+    updateSettings({ hosts: [...hosts.filter((h) => h.name !== name.trim()), { name: name.trim(), target: target.trim() || undefined, source: 'app' }] })
+    setName('')
+    setTarget('')
+  }
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-semibold tracking-wider text-white/45 uppercase">SSH hosts</div>
+      <div className="mb-2 text-[11.5px] text-white/40">
+        {fromConfig.length ? `From ~/.ssh/config: ${fromConfig.join(', ')}. ` : ''}Add others here; the target is what follows ssh.
+      </div>
+      <div className="space-y-1">
+        {hosts.map((h) => (
+          <div key={h.name} className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-[12.5px]">
+            <span className="text-white/85">{h.name}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-white/40">{h.target ?? h.name}</span>
+            <button type="button" onClick={() => updateSettings({ hosts: hosts.filter((x) => x.name !== h.name) })} className="no-drag rounded-md p-1 text-white/40 hover:bg-rose-500/15 hover:text-rose-200">
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mac-studio" className={cx(inputCls, 'w-36')} />
+          <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="admin@mac-studio.local -i ~/.ssh/mac_studio" className={cx(inputCls, 'flex-1 font-mono text-[12px]')} />
+          <Button tone="soft" onClick={add} disabled={!name.trim()}>
+            Add
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

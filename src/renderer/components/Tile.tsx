@@ -89,6 +89,8 @@ export const Tile = memo(function Tile({
   if (!s) return null
   const portList = ports ? ports.split(',').map(Number) : []
   const color = project?.color ?? '#a78bfa'
+  // Only checkout tiles get a browser preview of the worktree's dev server.
+  const previewable = s.kind === 'claude' || s.kind === 'shell' || s.kind === 'dev'
   const preview = tile.preview?.open
   const split = tile.preview?.split ?? 0.45
   const glow =
@@ -248,14 +250,16 @@ export const Tile = memo(function Tile({
             ✉ {s.unread}
           </motion.span>
         )}
-        <IconButton
-          title={portList.length ? `Preview :${portList.join(', :')} (⌘⇧P)` : 'Open preview'}
-          active={preview}
-          onClick={openPreview}
-        >
-          <Globe size={14} />
-          {portList.length > 0 && <span className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
-        </IconButton>
+        {previewable && (
+          <IconButton
+            title={portList.length ? `Preview :${portList.join(', :')} (⌘⇧P)` : 'Open preview'}
+            active={preview}
+            onClick={openPreview}
+          >
+            <Globe size={14} />
+            {portList.length > 0 && <span className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
+          </IconButton>
+        )}
         <IconButton title={focused ? 'Exit focus (⌘↵)' : 'Focus (⌘↵)'} onClick={() => focusTile(focused ? null : tile.id)}>
           {focused ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
         </IconButton>
@@ -315,7 +319,7 @@ export const Tile = memo(function Tile({
         </AnimatePresence>
       </div>
 
-      <GitStrip s={s} narrow={rect.w < 480} tileId={tile.id} />
+      {s.kind !== 'host' && s.kind !== 'design' && <GitStrip s={s} narrow={rect.w < 480} tileId={tile.id} />}
     </motion.div>
   )
 })
@@ -436,6 +440,8 @@ function TileMenu({
     </button>
   )
   const claude = s.kind === 'claude'
+  // Host and design tiles aren't in a checkout, so repo actions don't apply.
+  const repo = s.kind !== 'host' && s.kind !== 'design'
   const fresh = useFreshHandoff()
   const [actions, setActions] = useState<AdapterAction[]>([])
   useEffect(() => {
@@ -467,27 +473,28 @@ function TileMenu({
       {claude && <div className="my-1 h-px bg-white/[0.06]" />}
       {claude && item(<Flag size={13} />, 'Goal…', () => set({ goalFor: s.id }))}
       {claude && item(<Rocket size={13} />, 'Ship…', () => set({ shipFor: s.id }))}
-      {item(<GitPullRequest size={13} />, 'Pull request', () => set({ prFor: tileId }))}
-      {item(<Camera size={13} />, 'Screenshot set…', () => {
+      {repo && item(<GitPullRequest size={13} />, 'Pull request', () => set({ prFor: tileId }))}
+      {repo && item(<Camera size={13} />, 'Screenshot set…', () => {
         useApp.getState().setPreview(tileId, { open: true })
         setTimeout(() => set({ shotSet: { sessionId: s.id, tileId } }), 400)
       })}
-      {actions.length > 0 && (
+      {repo && actions.length > 0 && (
         <>
           <div className="mt-1 mb-0.5 px-2.5 pt-1 text-[10px] font-semibold tracking-[0.12em] text-white/30 uppercase">Project</div>
           {actions.map((a) => item(<Wrench size={13} />, a.label, () => runAction(a)))}
         </>
       )}
       <div className="my-1 h-px bg-white/[0.06]" />
-      {item(<Play size={13} />, hasDev ? 'Restart dev server' : 'Start dev server', async () => {
-        try {
-          await orch.invoke('dev:start', s.cwd, projectPath)
-          toast('Dev server starting — the globe lights up when it listens', 'ok')
-        } catch (e) {
-          toast((e as Error).message, 'error')
-        }
-      })}
-      {item(<TermIcon size={13} />, 'Shell here', () => useApp.getState().spawn({ kind: 'shell', projectPath, cwd: s.cwd }))}
+      {repo &&
+        item(<Play size={13} />, hasDev ? 'Restart dev server' : 'Start dev server', async () => {
+          try {
+            await orch.invoke('dev:start', s.cwd, projectPath)
+            toast('Dev server starting — the globe lights up when it listens', 'ok')
+          } catch (e) {
+            toast((e as Error).message, 'error')
+          }
+        })}
+      {repo && item(<TermIcon size={13} />, 'Shell here', () => useApp.getState().spawn({ kind: 'shell', projectPath, cwd: s.cwd }))}
       {item(<FolderOpen size={13} />, 'Reveal in Finder', () => orch.invoke('shell:reveal', s.cwd))}
       {item(<Copy size={13} />, 'Copy session id', () => {
         navigator.clipboard.writeText(s.id)
