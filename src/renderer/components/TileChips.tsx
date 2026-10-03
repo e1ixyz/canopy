@@ -181,6 +181,11 @@ export function freshHandoff(s: Session) {
   useApp.getState().toast('Writing a handoff; a fresh session will take over this tile', 'info')
 }
 
+export function saveHandoff(s: Session, close = false) {
+  orch.invoke('handoff:save', s.id, close)
+  useApp.getState().toast(close ? `Writing a handoff; ${s.name} closes once it is saved` : 'Writing a handoff for the shelf', 'info')
+}
+
 export function useFreshHandoff() {
   return freshHandoff
 }

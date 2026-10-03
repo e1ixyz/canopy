@@ -312,7 +312,7 @@ export const inputCls =
 
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
   return (
-    <button type="button" onClick={() => onChange(!on)} className="no-drag flex items-center gap-2.5 text-[13px] text-white/80">
+    <button type="button" onClick={() => onChange(!on)} className="no-drag flex items-center gap-2.5 text-left text-[13px] text-white/80">
       <span className={cx('relative h-5 w-9 rounded-full transition-colors', on ? 'bg-violet-500' : 'bg-white/15')}>
         <motion.span
           animate={{ x: on ? 16 : 0 }}

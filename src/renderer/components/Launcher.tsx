@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { BookOpen, FolderOpen, GitBranch, LayoutGrid, Pin, PinOff, Search, Sparkles } from 'lucide-react'
+import { Archive, BookOpen, FolderOpen, GitBranch, LayoutGrid, Pin, PinOff, Search, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { orch } from '../lib/orch'
 import { spring } from '../lib/motion'
@@ -126,7 +126,8 @@ function Section({ title, cards, offset }: { title: string; cards: Card[]; offse
 }
 
 function ProjectCard({ card, index }: { card: Card; index: number }) {
-  const { openProject, projects, set } = useApp()
+  const { openProject, projects, set, handoffCounts } = useApp()
+  const saved = handoffCounts[card.path] ?? 0
   const togglePin = async (e: React.MouseEvent) => {
     e.stopPropagation()
     const p = card.projectId ? projects.find((x) => x.id === card.projectId) : await orch.invoke('project:open', card.path)
@@ -179,6 +180,18 @@ function ProjectCard({ card, index }: { card: Card; index: number }) {
           </span>
         )}
         {card.prompts ? <span>{card.prompts} prompts</span> : null}
+        {saved > 0 && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation()
+              set({ newSession: { projectPath: card.path, mode: 'pickup' } })
+            }}
+            title="Pick up a saved handoff"
+            className="inline-flex items-center gap-1 rounded-full bg-violet-400/12 px-2 py-0.5 text-violet-200 transition hover:bg-violet-400/25"
+          >
+            <Archive size={11} /> {saved} handoff{saved === 1 ? '' : 's'}
+          </span>
+        )}
         <span className="ml-auto">{timeAgo(card.lastUsed)}</span>
       </div>
     </motion.button>

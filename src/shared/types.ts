@@ -112,6 +112,8 @@ export interface HandoffMeta {
   transcriptId?: string
   created: number
   used?: number
+  /** the original conversation's transcript still exists */
+  resumable?: boolean
 }
 
 export interface BadgeResult {

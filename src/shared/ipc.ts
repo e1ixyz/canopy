@@ -2,6 +2,7 @@ import type { PromptKey } from './prompts'
 import type {
   Adapter,
   AdapterAction,
+  HandoffMeta,
   PortsSnapshot,
   PrInfo,
   ShipFile,
@@ -79,6 +80,14 @@ export interface InvokeMap {
   'prompts:get': (sessionId: string, key: PromptKey, vars?: Record<string, string | number | undefined>) => string
   'prompts:shipTargets': (sessionId: string) => boolean
   'adapters:openFolder': () => void
+  'handoff:save': (id: string, close: boolean) => void
+  'handoffs:list': (projectPath?: string) => HandoffMeta[]
+  'handoffs:counts': () => Record<string, number>
+  'handoffs:rename': (file: string, title: string) => void
+  'handoffs:remove': (file: string) => void
+  'handoffs:open': (file: string) => void
+  'handoffs:import': (projectPath: string) => HandoffMeta | null
+  'handoffs:pickUp': (file: string, original: boolean) => Session
 }
 
 /** renderer -> main fire-and-forget */
@@ -93,6 +102,7 @@ export interface EventMap {
   'pty:exit': (id: string, code: number) => void
   'session:update': (s: Session) => void
   'session:removed': (id: string) => void
+  'handoffs:changed': () => void
   'bus:message': (m: BusMessage) => void
   'bus:cleared': () => void
   'claims:update': (c: Claim[]) => void

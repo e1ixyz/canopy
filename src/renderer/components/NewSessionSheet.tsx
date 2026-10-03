@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { AlertTriangle, FolderOpen, GitBranch, GitFork, History, Loader2, Sparkles, TerminalSquare } from 'lucide-react'
+import { AlertTriangle, Archive, FolderOpen, GitBranch, GitFork, History, Loader2, Sparkles, TerminalSquare } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { Adapter, PermissionMode, Role, TranscriptSummary, Worktree } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
 import { cx, tildify, timeAgo } from '../lib/util'
 import { useApp } from '../store/app'
+import { HandoffList } from './HandoffList'
 import { Button, Field, inputCls, Modal, Segmented } from './ui'
 
 const ROLES: { value: Role; label: string }[] = [
@@ -27,9 +28,9 @@ export function NewSessionSheet() {
 }
 
 function SheetBody() {
-  const { newSession, projects, sessions, set, spawn, toast, settings } = useApp()
+  const { newSession, projects, sessions, set, spawn, toast, settings, handoffCounts } = useApp()
   const [projectPath, setProjectPath] = useState(newSession?.projectPath ?? projects[0]?.path ?? '')
-  const [mode, setMode] = useState<'checkout' | 'worktree' | 'resume'>(newSession?.mode ?? 'checkout')
+  const [mode, setMode] = useState<'checkout' | 'worktree' | 'resume' | 'pickup'>(newSession?.mode ?? 'checkout')
   const [kind, setKind] = useState<'claude' | 'shell'>(newSession?.kind ?? 'claude')
   const [worktrees, setWorktrees] = useState<Worktree[]>([])
   const [cwd, setCwd] = useState(projectPath)
@@ -85,7 +86,7 @@ function SheetBody() {
       }
       setBusy('Starting…')
       const finalRole = override?.role ?? role
-      if (mode === 'resume') return
+      if (mode === 'resume' || mode === 'pickup') return
       await spawn({
         kind,
         projectPath,
@@ -168,6 +169,19 @@ function SheetBody() {
               { value: 'checkout', label: <span className="flex items-center gap-1.5"><GitBranch size={12} /> Existing checkout</span> },
               ...(isGit ? [{ value: 'worktree' as const, label: <span className="flex items-center gap-1.5"><GitFork size={12} /> New worktree</span> }] : []),
               ...(kind === 'claude' ? [{ value: 'resume' as const, label: <span className="flex items-center gap-1.5"><History size={12} /> Resume</span> }] : []),
+              ...(kind === 'claude'
+                ? [
+                    {
+                      value: 'pickup' as const,
+                      label: (
+                        <span className="flex items-center gap-1.5">
+                          <Archive size={12} /> Pick up
+                          {handoffCounts[projectPath] ? <span className="rounded-full bg-violet-400/25 px-1.5 text-[10px] text-violet-100">{handoffCounts[projectPath]}</span> : null}
+                        </span>
+                      ),
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>
@@ -233,6 +247,8 @@ function SheetBody() {
               </div>
             )}
 
+            {mode === 'pickup' && <HandoffList projectPath={projectPath} onPicked={() => set({ newSession: null })} />}
+
             {mode === 'resume' && (
               <div className="grid max-h-72 grid-cols-[minmax(0,1fr)] gap-1.5 overflow-y-auto scroll-thin">
                 {transcripts.map((t) => (
@@ -288,7 +304,7 @@ function SheetBody() {
           )}
         </AnimatePresence>
 
-        {kind === 'claude' && mode !== 'resume' && (
+        {kind === 'claude' && mode !== 'resume' && mode !== 'pickup' && (
           <>
             <Field label="Role">
               <Segmented id="role" value={role} onChange={setRole} options={ROLES} />
@@ -339,7 +355,7 @@ function SheetBody() {
         </AnimatePresence>
         <div className="flex-1" />
         <Button onClick={() => set({ newSession: null })}>Cancel</Button>
-        {mode !== 'resume' && (
+        {mode !== 'resume' && mode !== 'pickup' && (
           <Button tone="primary" disabled={!!busy || (conflict.length > 0 && mode === 'checkout')} onClick={() => start()}>
             {mode === 'worktree' ? 'Create worktree & start' : 'Start session'} <kbd className="!bg-white/15 !text-white/80">⌘↵</kbd>
           </Button>

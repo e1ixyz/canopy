@@ -9,6 +9,7 @@ import {
   type Adapter,
   type AdapterAction,
   type BusMessage,
+  type HandoffMeta,
   type PortPair,
   type PortsSnapshot,
   type Project,
@@ -22,7 +23,9 @@ import { Bus } from './bus/bus'
 import { BrowserBridge } from './browser'
 import { loginEnv, resolveClaude, runCommand, shTry } from './env'
 import { GoalController, type GoalStart } from './goal'
+import { HandoffShelf } from './handoffs'
 import { buildBrief, writeSessionFiles, type HookEvent } from './hooks/inject'
+import { orchHome } from './paths'
 import { PortWatcher } from './port-watcher'
 import { contextInfo, lastAssistantText, projectSlug } from './recents'
 import { changedFiles, classify } from './ship'
@@ -59,7 +62,11 @@ interface Proc {
   /** the user asked for "fresh session with handoff"; the next Stop carries the handoff */
   handoffPending?: boolean
   handoffAt?: number
+  /** what to do with the collected handoff: start a successor, keep it on the shelf, or keep it and close */
+  handoffMode?: HandoffMode
 }
+
+export type HandoffMode = 'fresh' | 'save' | 'saveClose'
 
 const BUFFER_CAP = 2_000_000
 const NAMES = 'atlas birch cedar delta ember fern gale harbor iris juno kite lumen moss nova onyx pine quill reef sage tide umber vale willow yarrow zephyr'.split(' ')
@@ -83,6 +90,7 @@ export class Hub {
   private pendingSpawns = new Map<string, (ok: boolean) => void>()
   onAttention: (s: Session, text: string) => void = () => {}
   browser = new BrowserBridge()
+  shelf = new HandoffShelf(orchHome('handoffs'))
   goals: GoalController
   private usage = new UsageTracker()
   private usageTimer?: NodeJS.Timeout
@@ -640,9 +648,11 @@ export class Hub {
   }
 
   /** Ask the session for a handoff; the next Stop collects it from the transcript */
-  async requestHandoff(id: string) {
+  async requestHandoff(id: string, mode: HandoffMode = 'fresh') {
     const text = await this.prompt(id, 'handoff')
     this.allowHandoff(id)
+    const proc = this.procs.get(id)
+    if (proc) proc.handoffMode = mode
     this.typePrompt(id, text)
   }
 
@@ -666,12 +676,60 @@ export class Hub {
       const last = proc.transcript ? lastAssistantText(proc.transcript) : { text: '', ts: 0 }
       if (last.ts > (proc.handoffAt ?? 0) && last.text.length > 40) {
         proc.autoApproveUntil = undefined
-        await this.handoffSpawn(s, last.text).catch((e) => this.emit('ui:toast', `Handoff failed: ${(e as Error).message}`, 'error'))
+        const mode = proc.handoffMode ?? 'fresh'
+        proc.handoffMode = undefined
+        await this.finishHandoff(s, last.text, mode).catch((e) => this.emit('ui:toast', `Handoff failed: ${(e as Error).message}`, 'error'))
         return
       }
     }
     // Nothing usable yet (e.g. a user Stop hook made it keep going); try again next Stop.
     proc.handoffPending = true
+  }
+
+  /** Every collected handoff lands on the shelf; fresh ones are marked used right away */
+  private async finishHandoff(s: Session, text: string, mode: HandoffMode) {
+    const project = getState().projects.find((p) => p.id === s.projectId)
+    const saved = this.shelf.save(
+      { project: project?.path ?? s.repo ?? s.cwd, cwd: s.cwd, branch: s.branch, session: s.name, transcriptId: s.id, used: mode === 'fresh' ? Date.now() : undefined },
+      text,
+    )
+    this.emit('handoffs:changed')
+    if (mode === 'fresh') return void (await this.handoffSpawn(s, text))
+    this.emit('ui:toast', `Saved handoff “${saved.title}”${mode === 'saveClose' ? ` and closed ${s.name}` : ''}`, 'ok')
+    if (mode === 'saveClose') this.remove(s.id)
+  }
+
+  listHandoffs(projectPath?: string): HandoffMeta[] {
+    return this.shelf.list(projectPath).map((h) => ({ ...h, resumable: !!h.transcriptId && existsSync(transcriptPath(h.cwd, h.transcriptId)) }))
+  }
+
+  /** Start a session from a saved handoff, or resume the conversation it came from */
+  async pickUp(file: string, original = false): Promise<Session> {
+    const { meta, body } = this.shelf.read(file)
+    let s: Session
+    if (original && meta.transcriptId && existsSync(transcriptPath(meta.cwd, meta.transcriptId))) {
+      const existing = this.sessions.get(meta.transcriptId)
+      if (existing) {
+        if (existing.status === 'exited' || existing.status === 'error') await this.start(existing.id)
+        s = { ...existing }
+      } else {
+        const taken = this.list().some((o) => o.name === meta.session)
+        s = await this.spawn({ kind: 'claude', projectPath: meta.project, cwd: meta.cwd, resumeFrom: meta.transcriptId, name: taken ? undefined : meta.session })
+      }
+    } else {
+      const here = existsSync(meta.cwd)
+      const cwd = here ? meta.cwd : ((await primaryRoot(meta.project).catch(() => null)) ?? meta.project)
+      const restore = !here && meta.branch ? `Its worktree (${meta.cwd}) no longer exists. Restore branch ${meta.branch} first (a new worktree or a checkout), then continue. ` : ''
+      s = await this.spawn({
+        kind: 'claude',
+        projectPath: meta.project,
+        cwd,
+        prompt: `You are picking up saved work${meta.session ? ` from session ${meta.session}` : ''}. ${restore}The handoff:\n\n${body}\n\nRead any files it points to, then carry on from its next steps.`,
+      })
+    }
+    this.shelf.markUsed(file)
+    this.emit('handoffs:changed')
+    return s
   }
 
   /** Start the successor of a handed-off session in its tile, seeded with the handoff */

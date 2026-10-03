@@ -39,12 +39,16 @@ export interface Packet {
 
 export interface NewSessionOpts {
   projectPath?: string
-  mode?: 'checkout' | 'worktree' | 'resume'
+  mode?: 'checkout' | 'worktree' | 'resume' | 'pickup'
   kind?: 'claude' | 'shell'
 }
 
 interface AppStore {
   ready: boolean
+  /** unused saved handoffs per project path */
+  handoffCounts: Record<string, number>
+  /** bumps whenever the shelf changes, so open lists reload */
+  handoffsRev: number
   view: 'launcher' | 'workspace'
   projects: Project[]
   recents: RecentProject[]
@@ -165,6 +169,8 @@ export const useApp = create<AppStore>((set, get) => ({
   packets: [],
   activeTileId: null,
   userUnread: 0,
+  handoffCounts: {},
+  handoffsRev: 0,
 
   init: async () => {
     const st = await orch.invoke('state:get')
@@ -191,6 +197,12 @@ export const useApp = create<AppStore>((set, get) => ({
     get().refreshRecents()
 
     orch.on('pty:data', (id, data, seq) => onPtyData(id, data, seq))
+    const refreshHandoffs = () => orch.invoke('handoffs:counts').then((handoffCounts) => set({ handoffCounts }))
+    refreshHandoffs()
+    orch.on('handoffs:changed', () => {
+      refreshHandoffs()
+      set((st) => ({ handoffsRev: st.handoffsRev + 1 }))
+    })
     orch.on('session:update', (s) => set((st) => ({ sessions: { ...st.sessions, [s.id]: s } })))
     orch.on('session:removed', (id) => {
       disposeTerm(id)

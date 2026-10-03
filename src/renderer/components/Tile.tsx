@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import {
+  Archive,
+  ArchiveX,
   Camera,
   Eraser,
   Flag,
@@ -37,7 +39,7 @@ import { cx, tildify } from '../lib/util'
 import { useApp } from '../store/app'
 import { PreviewPane } from './PreviewPane'
 import { PrPanel } from './PrPanel'
-import { BadgeChip, GoalChip, ModeChips, useFreshHandoff } from './TileChips'
+import { BadgeChip, GoalChip, ModeChips, saveHandoff, useFreshHandoff } from './TileChips'
 import { TerminalView } from './TerminalView'
 import { Button, IconButton, Popover, Ring, StatusPill } from './ui'
 
@@ -221,6 +223,9 @@ export const Tile = memo(function Tile({
               <div className="grid gap-1.5">
                 <Button size="sm" tone="primary" onClick={() => (setCtxOpen(false), fresh(s))}>
                   <Send size={12} /> Fresh session with handoff
+                </Button>
+                <Button size="sm" tone="soft" onClick={() => (setCtxOpen(false), saveHandoff(s))}>
+                  <Archive size={12} /> Save handoff for later
                 </Button>
                 <Button size="sm" tone="soft" onClick={() => (setCtxOpen(false), submitPrompt(s.id, '/clear'))}>
                   <Eraser size={12} /> Clear context
@@ -456,6 +461,8 @@ function TileMenu({
       {claude && item(<GitFork size={13} />, 'New session in a fresh worktree', () => set({ newSession: { projectPath, mode: 'worktree' } }))}
       {claude && item(<NotebookPen size={13} />, 'Update HANDOFF.md', () => askPrompt(s.id, 'updateHandoff'))}
       {claude && item(<Send size={13} />, 'Fresh session with handoff', () => fresh(s))}
+      {claude && item(<Archive size={13} />, 'Save handoff for later', () => saveHandoff(s))}
+      {claude && item(<ArchiveX size={13} />, 'Save handoff and close', () => saveHandoff(s, true))}
       {claude && item(<Eraser size={13} />, 'Clear context', () => submitPrompt(s.id, '/clear'))}
       {claude && <div className="my-1 h-px bg-white/[0.06]" />}
       {claude && item(<Flag size={13} />, 'Goal…', () => set({ goalFor: s.id }))}

@@ -133,7 +133,30 @@ function registerIpc() {
   })
   handle('shell:reveal', (p) => shell.showItemInFolder(p))
   handle('dev:start', (cwd, projectPath) => hub.startDev(cwd, projectPath))
-  handle('handoff:toNew', (id) => hub.requestHandoff(id))
+  handle('handoff:toNew', (id) => hub.requestHandoff(id, 'fresh'))
+  handle('handoff:save', (id, close) => hub.requestHandoff(id, close ? 'saveClose' : 'save'))
+  handle('handoffs:list', (p) => hub.listHandoffs(p))
+  handle('handoffs:counts', () => hub.shelf.counts())
+  handle('handoffs:rename', (file, title) => {
+    hub.shelf.rename(file, title)
+    emit('handoffs:changed')
+  })
+  handle('handoffs:remove', (file) => {
+    hub.shelf.remove(file)
+    emit('handoffs:changed')
+  })
+  handle('handoffs:open', (file) => {
+    hub.shelf.read(file)
+    shell.openPath(file)
+  })
+  handle('handoffs:import', async (projectPath) => {
+    const r = await dialog.showOpenDialog(win!, { properties: ['openFile'], filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }], defaultPath: join(homedir(), 'Desktop') })
+    if (r.canceled || !r.filePaths[0]) return null
+    const h = hub.shelf.importFile(r.filePaths[0], projectPath)
+    emit('handoffs:changed')
+    return h
+  })
+  handle('handoffs:pickUp', (file, original) => hub.pickUp(file, original))
   handle('prompts:get', (id, key, vars) => hub.prompt(id, key, vars))
   handle('prompts:shipTargets', (id) => hub.shipTargets(id))
   handle('adapters:openFolder', () => {
