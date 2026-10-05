@@ -16,11 +16,13 @@ import { listRecents, listTranscripts } from './recents'
 import { suggestBranch } from './naming'
 import { listSkills } from './skills'
 import { getState, loadState, saveState } from './store'
+import { Updater } from './updater'
 import { conflicts, branches, gitStatus, isGitRepo, listWorktrees } from './worktree/git'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let win: BrowserWindow | null = null
 let hub: Hub
+let updater: Updater
 
 const emit = <K extends keyof EventMap>(ch: K, ...args: Parameters<EventMap[K]>) => {
   if (win && !win.isDestroyed()) win.webContents.send(ch, ...args)
@@ -102,6 +104,11 @@ function createWindow() {
 
 function registerIpc() {
   handle('state:get', () => ({ ...getState(), sessions: hub.list() }))
+  handle('update:get', () => updater.get())
+  handle('update:check', () => updater.check(true))
+  handle('update:prepare', () => void updater.prepare())
+  handle('update:install', () => updater.install())
+  handle('update:dismissError', () => updater.dismissError())
   handle('recents:list', () => listRecents())
   handle('project:open', (path) => hub.openProject(path))
   handle('project:pin', (id, pinned) => {
@@ -294,8 +301,10 @@ app.whenReady().then(async () => {
     (sid, url) => emit('ui:openPreview', sid, url),
     (sid, width) => emit('ui:previewWidth', sid, width),
   )
+  updater = new Updater((s) => emit('update:state', s))
   registerIpc()
   hub.watcher.start()
+  updater.start()
   applyAppearance()
   nativeTheme.on('updated', () => win?.setBackgroundColor(windowBg()))
   createWindow()
@@ -311,6 +320,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('before-quit', () => {
+  updater?.stop()
   hub?.watcher.stop()
   hub?.dispose()
   hub?.killAll()

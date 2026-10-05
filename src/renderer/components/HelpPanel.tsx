@@ -70,6 +70,7 @@ const SECTIONS: Section[] = [
         '⌘⌥← and ⌘⌥→ switch pages. ⌘1 to ⌘9 jump to a tile on the current page.',
       ] },
       { p: 'Pages, tiles and previews persist. Quit the app and they come back where you left them, with each Claude session reattached through --resume.' },
+      { p: 'Builds installed with bun run install-app check GitHub for new commits on main at launch and every hour. When there are some, a card in the corner lists them. Update pulls and rebuilds in the background, then Restart now installs it and reopens Canopy with your sessions. Check for updates in the palette, or Settings › Check now, asks right away.' },
       { p: 'Settings › Appearance switches between light and dark. It follows macOS by default, or pin it to Light or Dark. Terminals restyle with it, and new Claude sessions pick a matching light or dark palette.' },
     ],
   },

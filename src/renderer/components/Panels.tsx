@@ -69,6 +69,7 @@ export function SettingsPanel() {
         </div>
         <HostSettings />
         <PromptSettings />
+        <UpdateSettings />
         <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
           <div className="flex-1 text-[12px] text-white/50">
             Adapters teach the app a repo's scripts, ports and prompts. Put them in <span className="font-mono text-white/70">~/.orchestrator/adapters</span>, or a repo's own <span className="font-mono text-white/70">.orchestrator.json</span>.
@@ -79,6 +80,26 @@ export function SettingsPanel() {
         </div>
       </div>
     </Modal>
+  )
+}
+
+function UpdateSettings() {
+  const { update, checkForUpdates } = useApp()
+  const [busy, setBusy] = useState(false)
+  if (!update?.enabled) return null
+  const check = async () => {
+    setBusy(true)
+    await checkForUpdates().finally(() => setBusy(false))
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+      <div className="flex-1 text-[12px] text-white/50">
+        Built from <span className="font-mono text-white/70">{update.built}</span>. Canopy checks GitHub every hour and offers new commits on main.
+      </div>
+      <Button size="sm" onClick={check} disabled={busy || update.phase === 'building'}>
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Check now
+      </Button>
+    </div>
   )
 }
 

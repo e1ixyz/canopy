@@ -4,7 +4,7 @@ A desktop harness that runs many real `claude` CLI sessions in tiles, wires them
 
 _Last updated 2026-10-05._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
 
-The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing names changed: product name, window title, UI copy, the session brief, the icon. Internal names stayed: the repo folder and package name, appId `dev.orchestrator.app`, the userData folder (`main/index.ts` pins it to `Application Support/Orchestrator` so state survives), `~/.orchestrator`, the `ORCH_*` env vars and the `orchestrator` MCP server and tool names.
+The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing names changed: product name, window title, UI copy, the session brief, the icon. The repo lives at `~/Developer/Personal Projects/Canopy` (moved off the Desktop the same day) and the GitHub repo is `e1ixyz/canopy` (private). Internal names stayed: the package name, appId `dev.orchestrator.app`, the userData folder (`main/index.ts` pins it to `Application Support/Orchestrator` so state survives), `~/.orchestrator`, the `ORCH_*` env vars and the `orchestrator` MCP server and tool names.
 
 ## Run it
 
@@ -12,7 +12,7 @@ The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing 
 bun install          # postinstall rebuilds node-pty against Electron
 bun run dev          # electron-vite dev (HMR for the renderer; main changes need a restart)
 bun run typecheck && bun run test
-bun run install-app  # packaged app → ~/Applications/Canopy.app + Desktop alias, and removes the old Orchestrator.app (keeps the debug server)
+bun run install-app  # packaged app → ~/Applications/Canopy.app + Desktop alias, and removes the old Orchestrator.app (keeps the debug server and self-updater)
 bun run dist         # release .dmg (arm64 + x64) in dist/, ad-hoc signed, no debug server
 ```
 
@@ -51,6 +51,8 @@ main (Node)                                   renderer (React + Motion)
   naming.ts     suggestBranch(): worktree branch from the first prompt (one-shot `claude -p --model haiku`)
   termtext.ts   plainText()/TRUST/LIMIT: reading PTY output for status detection
 ```
+
+Self-update (2026-10-05, `src/main/updater.ts`): `install-app.sh` builds with `CANOPY_SELF_UPDATE=1`, so `electron.vite.config.ts` bakes in `__SOURCE_DIR__` (this checkout) next to `__BUILD_SHA__` (HEAD at build time). Release builds (`bun run dist`) get an empty source dir and the updater stays off, as it does in dev. The app runs `git fetch origin main` in the checkout 20 s after launch and hourly, using the login-shell env, so the user's own git credentials reach the private repo. When `origin/main` is ahead of the build sha, `UpdateCard` (`Overlays.tsx`) offers Update: fast-forward the checkout (it must be on `main`), `bun install` if `bun.lock`/`package.json` changed, then `install-app.sh --build-only`. Restart now spawns `install-app.sh --install-only --wait-pid <pid> --open` detached and quits; the script swaps the bundle once the app has exited and reopens it, and sessions resume as after any restart. Output goes to `update.log` in userData. A build of uncommitted changes counts as HEAD, so committing and pushing them later shows up as an update. To see the prompt without pushing anything, build with `CANOPY_BUILD_SHA=$(git rev-parse HEAD~1) ORCH_DEBUG_BUILD=1 CANOPY_SELF_UPDATE=1 npx electron-vite build`, pack with `npx electron-builder --mac --dir`, and run `dist/mac-arm64/Canopy.app/Contents/MacOS/Canopy` with `ORCH_USER_DATA`/`ORCH_HOME` pointing at scratch folders; don't press Update there, it installs over `~/Applications/Canopy.app`.
 
 Appearance: one look with a light and a dark mode, picked by `settings.appearance` (`system`/`light`/`dark`). Main sets `nativeTheme.themeSource` from it (`applyAppearance` in `src/main/index.ts`), so the renderer only reads `prefers-color-scheme`. `useTheme` in `App.tsx` puts `data-mode` on `<html>` and restyles xterm (`setTermPalette` in `lib/terms.ts`). The terminal palette per mode lives in `lib/theme.ts`; the CSS tokens are in `styles.css`. Ember, Console and Desktop 98 were removed on 2026-10-05; an old `theme` key in saved settings is ignored.
 - Tailwind v4 compiles every utility to a CSS variable, so each mode remaps `--color-white` (the foreground ink: `text-white/50`, `bg-white/[0.06]`, `border-white/10`), `--color-black` (wells, scrims), `--color-violet-*` (the accent), radii and fonts. Light modes also flip the status scales (emerald/amber/rose/sky…). New code: keep writing `white`/`violet` classes; use `text-on-accent` on accent fills and `var(--tile-bg)`, `var(--glass)`, `var(--pop-shadow)` etc. for surfaces. No hex colors in components.
@@ -109,10 +111,10 @@ Not yet exercised end to end:
 - `--append-system-prompt` is fixed at spawn, so the sibling list in the brief goes stale. Sessions should call `list_sessions` for the live view.
 
 - The Desktop is in iCloud, which keeps re-adding FinderInfo xattrs, and codesign refuses to sign "detritus". `install-app.sh` copies the app to `~/Applications` with `ditto --noextattr`, signs it there (`scripts/sign-adhoc.sh`, inside-out) and only puts an alias on the Desktop.
-- The Desktop is case-insensitive, and the project folder is `~/Desktop/orchestrator`. The alias is named `Canopy.app`, and the script only replaces or removes an alias when it is a plain file, so it never touches the project folder.
+- `install-app` puts a `Canopy.app` alias on the Desktop. The Desktop is case-insensitive, so the script only replaces or removes an alias when it is a plain file, never a folder of the same name.
 - A modal body must not read its target from the store: sheets keep rendering through their exit animation after the store field is cleared. Pass it in as a prop (see `DeploySetup.tsx`).
 - Tailwind `relative` and `absolute` on one element: `relative` wins and an absolutely-sized child gets 0 height (bit the design webview).
-- `bun run dist` packs into `~/Library/Caches/Canopy-dist` and copies the .dmg files back, because codesign rejects the iCloud Desktop's xattrs. `scripts/after-pack.cjs` ad-hoc signs only when `ORCH_ADHOC_SIGN=1`.
+- `bun run dist` packs into `~/Library/Caches/Canopy-dist` and copies the .dmg files back, because codesign rejects the xattrs iCloud adds (the repo used to live on the iCloud Desktop). `scripts/after-pack.cjs` ad-hoc signs only when `ORCH_ADHOC_SIGN=1`.
 - The packaged app and `bun run dev` share the same state (`~/Library/Application Support/Orchestrator`, kept under the old name). Run one at a time.
 - Claude Code's own colors come from its `auto` theme, which asks the terminal for its background (OSC 11) and falls back to `COLORFGBG`. So each xterm palette has an opaque `background` equal to the theme's `--term-bg`, and `hub.ts` sets `COLORFGBG` at spawn. A session started before a light/dark switch keeps its old palette until it restarts; light palettes also set `minimumContrastRatio: 3` as a safety net.
 - Tailwind's `!` utilities sit in a cascade layer, and layered `!important` beats unlayered `!important`. Theme CSS can't override a `!text-…` class, so don't use `!` utilities on hooked elements (see `orch-kbd-accent` in `Dock.tsx`).
@@ -143,7 +145,7 @@ Not exercised: the Railway SSH button (it would open a production shell), runnin
 
 ## Next
 
-`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–18 and 21 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update), 20 (Linux/Windows) and 22 (tile borders that warn at 150k/200k/250k context tokens). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
+`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–18 and 21 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update; self-update from the checkout is built for install-app builds, release builds still need GitHub Releases), 20 (Linux/Windows) and 22 (tile borders that warn at 150k/200k/250k context tokens). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
 
 
 1. Run a worktree through the etwal adapter on a scratch branch and check that the port collision repair rewrote `.wt-run.sh` and `.env`.

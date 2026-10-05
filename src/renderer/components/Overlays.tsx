@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useAnimate } from 'motion/react'
-import { AlertCircle, CheckCircle2, GitFork, Info, Sparkles, TriangleAlert } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Download, GitFork, Info, Loader2, Sparkles, TriangleAlert } from 'lucide-react'
 import { useEffect } from 'react'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
@@ -86,6 +86,104 @@ export function SpawnConfirms() {
         ))}
       </AnimatePresence>
     </div>
+  )
+}
+
+/** GitHub has commits the running build doesn't: offer to pull, build and restart */
+export function UpdateCard() {
+  const { update, updateDismissed, set } = useApp()
+  if (!update?.enabled) return null
+  const { phase } = update
+  const hidden = phase === 'idle' || ((phase === 'available' || phase === 'ready') && updateDismissed === update.latest)
+  const later = () => set({ updateDismissed: update.latest ?? null })
+  return (
+    <AnimatePresence>
+      {!hidden && (
+        <motion.div
+          key="update"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.18 }}
+          className="glass fixed right-4 bottom-4 z-[55] w-[340px] rounded-2xl p-4 shadow-[var(--pop-shadow)]"
+          role="status"
+        >
+          {phase === 'available' && (
+            <>
+              <div className="flex items-center gap-2 text-[13px] font-semibold">
+                <Download size={14} className="text-violet-300" /> Update available
+              </div>
+              <div className="mt-1 text-[12px] text-white/55">
+                {update.behind} new commit{update.behind === 1 ? '' : 's'} on GitHub
+              </div>
+              {!!update.commits?.length && (
+                <ul className="mt-2.5 max-h-[132px] space-y-1 overflow-y-auto scroll-thin rounded-xl bg-black/25 p-2.5 text-[12px]">
+                  {update.commits.map((c) => (
+                    <li key={c.sha} className="flex gap-2">
+                      <span className="shrink-0 font-mono text-[11px] text-white/35">{c.sha}</span>
+                      <span className="min-w-0 truncate text-white/75">{c.subject}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" onClick={later}>
+                  Later
+                </Button>
+                <Button size="sm" tone="primary" onClick={() => orch.invoke('update:prepare')}>
+                  Update
+                </Button>
+              </div>
+            </>
+          )}
+          {phase === 'building' && (
+            <div className="flex items-center gap-2.5 text-[12.5px]">
+              <Loader2 size={14} className="animate-spin text-violet-300" />
+              <div>
+                <div className="font-semibold">Updating Canopy</div>
+                <div className="text-white/55">{update.step}…</div>
+              </div>
+            </div>
+          )}
+          {phase === 'ready' && (
+            <>
+              <div className="flex items-center gap-2 text-[13px] font-semibold">
+                <CheckCircle2 size={14} className="text-emerald-300" /> Update ready
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed text-white/55">
+                Restart to finish. Sessions come back with their conversations; a turn that is still running stops.
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" onClick={later}>
+                  Later
+                </Button>
+                <Button size="sm" tone="primary" onClick={() => orch.invoke('update:install')}>
+                  Restart now
+                </Button>
+              </div>
+            </>
+          )}
+          {phase === 'error' && (
+            <>
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-rose-200">
+                <AlertCircle size={14} /> Update failed
+              </div>
+              <div className="mt-1 text-[12px] leading-relaxed break-words text-white/60 select-text">{update.error}</div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button size="sm" onClick={() => orch.invoke('update:dismissError')}>
+                  Dismiss
+                </Button>
+                {!!update.behind && (
+                  <Button size="sm" tone="primary" onClick={() => orch.invoke('update:prepare')}>
+                    Try again
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

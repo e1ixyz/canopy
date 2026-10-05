@@ -8,6 +8,7 @@ import {
   Wand2,
   ArrowRight,
   BookOpen,
+  Download,
   FolderOpen,
   GitFork,
   Globe,
@@ -89,6 +90,7 @@ function Body() {
       { id: 'worktrees', group: 'View', label: 'Worktrees & ports', icon: <GitFork size={14} />, run: () => st.set({ worktreesOpen: true }) },
       { id: 'help', group: 'View', label: 'Guide: how Canopy works', hint: '⌘/', icon: <BookOpen size={14} />, run: () => st.set({ helpOpen: true }) },
       { id: 'settings', group: 'View', label: 'Settings', icon: <Settings2 size={14} />, run: () => st.set({ settingsOpen: true }) },
+      { id: 'update', group: 'View', label: 'Check for updates', icon: <Download size={14} />, run: () => st.checkForUpdates() },
     ]
     if (activeTile && activeSession) {
       const claude = activeSession.kind === 'claude'

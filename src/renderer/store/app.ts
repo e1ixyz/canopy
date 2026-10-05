@@ -10,6 +10,7 @@ import type {
   RecentProject,
   Session,
   Settings,
+  UpdateState,
   SpawnRequest,
   Tile,
   UsageSnapshot,
@@ -84,6 +85,9 @@ interface AppStore {
   confirms: Confirm[]
   toasts: Toast[]
   packets: Packet[]
+  update: UpdateState | null
+  /** the origin/main sha the user said Later to; a newer push prompts again */
+  updateDismissed: string | null
   activeTileId: string | null
   userUnread: number
 
@@ -109,6 +113,8 @@ interface AppStore {
   toggleSelect: (tileId: string) => void
   clearSelection: () => void
   toast: (text: string, tone?: Toast['tone']) => void
+  /** Ask GitHub now; says so when the build is current (an update shows its own card) */
+  checkForUpdates: () => Promise<void>
   set: (p: Partial<AppStore>) => void
   jumpToSession: (sessionId: string) => void
   refreshGit: (cwd: string) => Promise<void>
@@ -178,6 +184,8 @@ export const useApp = create<AppStore>((set, get) => ({
   confirms: [],
   toasts: [],
   packets: [],
+  update: null,
+  updateDismissed: null,
   activeTileId: null,
   userUnread: 0,
   handoffCounts: {},
@@ -247,6 +255,8 @@ export const useApp = create<AppStore>((set, get) => ({
     orch.on('usage:update', (usage) => set({ usage }))
     orch.invoke('usage:get').then((usage) => set({ usage }))
     orch.on('ui:toast', (text, tone) => get().toast(text, tone))
+    orch.on('update:state', (update) => set({ update }))
+    orch.invoke('update:get').then((update) => set({ update }))
     orch.on('ui:previewWidth', (sid, width) => {
       const hit = tileForSession(get().pages, sid)
       if (hit) get().setPreview(hit.tile.id, { open: true, width })
@@ -435,6 +445,13 @@ export const useApp = create<AppStore>((set, get) => ({
     set((st) => ({ selected: st.selected.includes(tileId) ? st.selected.filter((x) => x !== tileId) : [...st.selected, tileId] })),
   clearSelection: () => set({ selected: [] }),
 
+  checkForUpdates: async () => {
+    set({ updateDismissed: null })
+    const u = await orch.invoke('update:check')
+    set({ update: u })
+    if (!u.enabled) get().toast('Updates work in builds installed with bun run install-app', 'warn')
+    else if (u.phase === 'idle') get().toast(`Canopy is up to date (${u.built})`, 'ok')
+  },
   toast: (text, tone = 'info') => {
     const id = nanoid(6)
     set((st) => ({ toasts: [...st.toasts, { id, text, tone }] }))

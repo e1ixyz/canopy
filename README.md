@@ -11,7 +11,7 @@ bun install        # also rebuilds node-pty for Electron
 bun run dev        # hot-reloading dev build
 bun run app        # production build, run locally
 bun run package    # Canopy.app in dist/
-bun run install-app  # build, install to ~/Applications, ad-hoc sign, alias on the Desktop
+bun run install-app  # build, install to ~/Applications, ad-hoc sign, alias on the Desktop; this build updates itself from GitHub
 bun run dist       # release .dmg files (arm64 and x64), ad-hoc signed, no debug server
 bun run test       # unit tests (vitest)
 bun run typecheck

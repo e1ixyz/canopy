@@ -12,7 +12,7 @@ import { Launcher } from './components/Launcher'
 import { NewSessionSheet } from './components/NewSessionSheet'
 import { Overview } from './components/Overview'
 import { BroadcastSheet, SettingsPanel, WorktreesPanel } from './components/Panels'
-import { Packets, SpawnConfirms, Toasts } from './components/Overlays'
+import { Packets, SpawnConfirms, Toasts, UpdateCard } from './components/Overlays'
 import { TopBar } from './components/TopBar'
 import { Workspace } from './components/Workspace'
 import { focusTerm, setTermPalette } from './lib/terms'
@@ -164,6 +164,7 @@ export function App() {
         <BroadcastSheet />
         <WorktreesPanel />
         <SpawnConfirms />
+        <UpdateCard />
         <Packets />
         <Toasts />
       </div>

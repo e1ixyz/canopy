@@ -322,6 +322,27 @@ export interface BranchSuggestion {
 
 export type Appearance = 'system' | 'light' | 'dark'
 
+export interface UpdateCommit {
+  sha: string
+  subject: string
+}
+
+/** Self-update for install-app builds: GitHub's origin/main compared with the commit the app was built from */
+export interface UpdateState {
+  /** false in dev and in release builds, which have no checkout to update from */
+  enabled: boolean
+  phase: 'idle' | 'available' | 'building' | 'ready' | 'error'
+  /** short sha the running app was built from */
+  built: string
+  latest?: string
+  behind?: number
+  commits?: UpdateCommit[]
+  /** what a build is doing right now */
+  step?: string
+  error?: string
+  checkedAt?: number
+}
+
 export interface Settings {
   /** Light or dark; 'system' follows macOS */
   appearance?: Appearance

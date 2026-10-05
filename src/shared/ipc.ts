@@ -29,6 +29,7 @@ import type {
   Settings,
   SpawnRequest,
   TranscriptSummary,
+  UpdateState,
   Worktree,
 } from './types'
 
@@ -109,6 +110,11 @@ export interface InvokeMap {
   'deploy:reveal': (sessionId: string, key: string) => { local?: string; remote?: string } | null
   'deploy:ssh': (sessionId: string) => Session
   'preview:capture': (webContentsId: number) => string
+  'update:get': () => UpdateState
+  'update:check': () => UpdateState
+  'update:prepare': () => void
+  'update:install': () => void
+  'update:dismissError': () => void
 }
 
 /** renderer -> main fire-and-forget */
@@ -136,6 +142,7 @@ export interface EventMap {
   'ui:previewWidth': (sessionId: string, width: number | 'fill') => void
   'usage:update': (u: UsageSnapshot) => void
   'shots:progress': (i: number, n: number, file: string) => void
+  'update:state': (s: UpdateState) => void
 }
 
 export interface OrchApi {
