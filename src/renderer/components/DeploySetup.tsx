@@ -60,8 +60,8 @@ function Body({ setup }: { setup: { cwd: string; projectPath: string; sessionId?
   const save = async () => {
     if (!p || !service || !env) return
     const target = { project: p.id, projectName: p.name, service, environment: env, environments: envs.length ? envs : [env] }
-    await orch.invoke('deploy:save', repo, target)
     try {
+      await orch.invoke('deploy:save', repo, target)
       if (sessionId) await orch.invoke('session:retarget', sessionId, { kind: 'deploy', ...target })
       else await spawn({ kind: 'deploy', projectPath, cwd, target: { kind: 'deploy', ...target } })
       set({ deploySetup: null })

@@ -8,7 +8,7 @@ const s = (id: string, touched: string[]): Session => ({
 
 describe('ship', () => {
   it('parses porcelain including renames and untracked files', () => {
-    expect(parsePorcelain(' M src/a.ts\n?? new.txt\nR  old.ts -> moved.ts\n')).toEqual(['src/a.ts', 'new.txt', 'moved.ts'])
+    expect(parsePorcelain(' M src/a.ts\0?? new.txt\0R  moved.ts\0old.ts\0?? sub/café.txt\0')).toEqual(['src/a.ts', 'new.txt', 'moved.ts', 'sub/café.txt'])
   })
   it('splits files between me, a sibling that edited them, and a claim holder', () => {
     const me = s('me', ['src/a.ts'])

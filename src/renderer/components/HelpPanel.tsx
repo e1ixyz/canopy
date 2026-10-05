@@ -70,6 +70,7 @@ const SECTIONS: Section[] = [
         '⌘⌥← and ⌘⌥→ switch pages. ⌘1 to ⌘9 jump to a tile on the current page.',
       ] },
       { p: 'Pages, tiles and previews persist. Quit the app and they come back where you left them, with each Claude session reattached through --resume.' },
+      { p: 'Settings › Appearance switches between light and dark. It follows macOS by default, or pin it to Light or Dark. Terminals restyle with it, and new Claude sessions pick a matching light or dark palette.' },
     ],
   },
   {
@@ -97,8 +98,9 @@ const SECTIONS: Section[] = [
     blocks: [
       { p: 'Two sessions in one checkout flip branches under each other and sweep each other’s files into commits. When you try it, the sheet offers a new worktree, a read-only reviewer, or Start anyway.' },
       { p: 'A new worktree lands next to the repo as <repo>-wt-<branch>. The app reserves a web and api port pair for it and remembers that reservation even while the dev server is stopped, so the next worktree never gets handed the same pair. It copies .env with the port keys rewritten and links HANDOFF.md to the primary checkout’s copy.' },
+      { p: 'You can leave the branch empty. Write the first prompt instead and the app names the worktree from it, with a quick Haiku call on your own Claude Code login. The suggestion shows greyed in the branch field while you type; click the field to edit it. The prefix is the adapter’s branchPrefix, else the one your recent branches use (feat/, fix/…), else orch/. A name that is taken gets -2. Sessions that start one with spawn_session and no branch get the same naming. Turn it off in Settings.' },
       { p: 'Sessions get PORT and WEB_PORT in their environment. Their brief also tells them to use those ports.' },
-      { p: 'Worktrees (in the dock) shows every worktree with its branch, changes, ahead/behind count, ports and sessions. From there you can start a session or dev server in it, or remove it. Removal refuses when there are uncommitted or unpushed changes unless you confirm.' },
+      { p: 'Worktrees (in the dock) shows every worktree with its branch, changes, ahead/behind count, ports and sessions. From there you can start a session or dev server in it, or remove it. Removal refuses when there are uncommitted changes or commits that exist on no other branch unless you confirm, and it stops any session still running in the worktree first.' },
     ],
   },
   {
@@ -296,7 +298,7 @@ const SECTIONS: Section[] = [
         'A session will not resume: Claude only writes a transcript after the first message, so a never-used session starts fresh with the same id instead.',
         'Login answers 403 on a worktree port: the app needs TRUSTED_ORIGINS for that port. An adapter’s run script can set it; otherwise add it to the worktree’s .env.',
         'A port shows under the wrong tile: two processes share a working directory. Start the server from the tile that owns it, or use Start dev server.',
-        'No notifications: turn them on in Settings and allow Orchestrator in System Settings › Notifications.',
+        'No notifications: turn them on in Settings and allow Canopy in System Settings › Notifications.',
         'After changing the app’s code, run bun run install-app in the project. It rebuilds, re-signs and refreshes the Desktop alias.',
         'Do not run the dev build and the installed app at the same time. They share one state file.',
       ] },
@@ -338,13 +340,13 @@ export function HelpPanel() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-md" onClick={() => set({ helpOpen: false })} />
+          <div className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-md" onClick={() => set({ helpOpen: false })} />
           <motion.div
             initial={{ opacity: 0, scale: 0.94, y: 24 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={spring.bouncy}
-            className="glass relative flex h-[min(780px,88vh)] w-[min(1080px,100%)] overflow-hidden rounded-3xl shadow-[0_40px_120px_-20px_rgba(0,0,0,0.85)]"
+            className="glass relative flex h-[min(780px,88vh)] w-[min(1080px,100%)] overflow-hidden rounded-3xl shadow-[var(--pop-shadow)]"
           >
             <aside className="flex w-64 shrink-0 flex-col border-r border-white/[0.06] bg-black/20 p-4">
               <div className="mb-4 flex items-center gap-2.5 px-1">
@@ -353,7 +355,7 @@ export function HelpPanel() {
                 </div>
                 <div>
                   <div className="text-[14px] font-semibold">Guide</div>
-                  <div className="text-[11px] text-white/45">How Orchestrator works</div>
+                  <div className="text-[11px] text-white/45">How Canopy works</div>
                 </div>
               </div>
               <div className="relative mb-3">

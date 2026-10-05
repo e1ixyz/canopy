@@ -122,6 +122,7 @@ export class PortWatcher {
     const raw = parseLsofListen(listen)
     this.listening = new Set(raw.map((r) => r.port))
     if (!procs.length) {
+      this.last.clear()
       this.listeners = raw.filter((r) => !this.ignore().has(r.port))
       return
     }
@@ -136,6 +137,8 @@ export class PortWatcher {
     const ownerOf = new Map<number, string>()
     for (const [id, ports] of result) for (const p of ports) if (!ownerOf.has(p)) ownerOf.set(p, id)
     this.listeners = listeners.filter((l) => !this.ignore().has(l.port)).map((l) => ({ ...l, sessionId: ownerOf.get(l.port) }))
+    // Sessions that exited drop out of procs(); forget their last report so a restart re-announces ports.
+    for (const id of [...this.last.keys()]) if (!result.has(id)) this.last.delete(id)
     for (const [id, ports] of result) {
       const key = ports.join(',')
       if (this.last.get(id) !== key) {

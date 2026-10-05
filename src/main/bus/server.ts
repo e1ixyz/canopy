@@ -159,7 +159,7 @@ function buildMcp(hub: Hub, sid: string) {
     'spawn_session',
     {
       description:
-        'Ask the user to start another Claude Code session (they confirm in the GUI). worktree: "new" (default; a fresh git worktree + branch, the safe choice for parallel edits), "same" (read-only helpers only), or an absolute worktree path.',
+        'Ask the user to start another Claude Code session (they confirm in the GUI). worktree: "new" (default; a fresh git worktree + branch, the safe choice for parallel edits), "same" (read-only helpers only), or an absolute worktree path. Leave branch out and the new branch is named from the prompt.',
       inputSchema: {
         prompt: z.string(),
         name: z.string().optional(),

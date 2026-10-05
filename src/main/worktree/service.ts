@@ -48,7 +48,7 @@ export class WorktreeService {
       const cmd = fill(adapter.worktree.create, { branch: req.branch, base, primary: adapter.primary ?? primary, slug })
       await sh(process.env.SHELL || '/bin/zsh', ['-lc', cmd], primary, 10 * 60_000)
     } else {
-      await this.defaultCreate(primary, req.branch, base, slug)
+      await this.defaultCreate(primary, req.branch, base, slug, adapter)
     }
 
     const after = await listWorktrees(primary)
@@ -90,7 +90,7 @@ export class WorktreeService {
     return next
   }
 
-  private async defaultCreate(primary: string, branch: string, base: string, slug: string) {
+  private async defaultCreate(primary: string, branch: string, base: string, slug: string, adapter: Adapter | null) {
     const path = join(dirname(primary), `${basename(primary)}-wt-${slug}`)
     if (existsSync(path)) throw new Error(`${path} already exists`)
     const exists = (await branches(primary)).includes(branch)
@@ -103,12 +103,16 @@ export class WorktreeService {
       const claimed = taken[w.path] ? null : this.portsFor(w.path)
       if (claimed) taken[w.path] = claimed
     }
-    const ports = allocatePorts(taken, this.deps.listening())
+    // An adapter's ports set where allocation starts; its envPortKeys name the .env keys to rewrite.
+    const ports = allocatePorts(taken, this.deps.listening(), adapter?.ports?.web && adapter.ports.api ? { web: adapter.ports.web, api: adapter.ports.api } : undefined)
+    const keys = adapter?.envPortKeys
+      ? { web: adapter.envPortKeys.web ?? ['WEB_PORT', 'VITE_PORT'], api: adapter.envPortKeys.api ?? ['PORT', 'API_PORT'] }
+      : undefined
     this.deps.reserve(path, ports)
 
     for (const env of ['.env', '.env.local']) {
       const src = join(primary, env)
-      if (existsSync(src) && !existsSync(join(path, env))) writeFileSync(join(path, env), rewriteEnvPorts(read(src), ports))
+      if (existsSync(src) && !existsSync(join(path, env))) writeFileSync(join(path, env), rewriteEnvPorts(read(src), ports, keys))
     }
     // One canonical handoff across worktrees, like the etwal harness does it.
     const handoff = join(primary, 'HANDOFF.md')
@@ -116,13 +120,23 @@ export class WorktreeService {
     if (existsSync(handoff) && !existsSync(target)) symlinkSync(handoff, target)
   }
 
-  async remove(path: string, force: boolean): Promise<{ ok: boolean; reason?: string }> {
+  /** `beforeDelete` runs only once removal will go ahead (it stops the sessions inside) */
+  async remove(path: string, force: boolean, beforeDelete?: () => void): Promise<{ ok: boolean; reason?: string }> {
+    if (!existsSync(path)) {
+      // Deleted outside the app: forget it in git (the sibling <repo>-wt-<branch> naming finds the primary) and free its ports.
+      const primary = path.replace(/-wt-[^/]*$/, '')
+      if (primary !== path && existsSync(primary)) await shTry('git', ['worktree', 'prune'], primary)
+      beforeDelete?.()
+      this.deps.reserve(path, null)
+      return { ok: true }
+    }
     const primary = await primaryRoot(path)
     if (primary === path) return { ok: false, reason: 'Refusing to remove the primary checkout' }
     if (!force) {
       const reason = await hasUnsafeState(path)
       if (reason) return { ok: false, reason }
     }
+    beforeDelete?.()
     const adapter = await this.adapter(path)
     if (adapter?.worktree?.remove) {
       await sh(process.env.SHELL || '/bin/zsh', ['-lc', fill(adapter.worktree.remove, { path, primary })], primary, 120_000)
@@ -164,7 +178,8 @@ export class WorktreeService {
     if (!cmd) throw new Error('No dev command found. Add "devCommand" to .orchestrator.json')
     if (ports) {
       const env = [`PORT=${ports.api}`, `WEB_PORT=${ports.web}`, `API_PROXY_TARGET=http://localhost:${ports.api}`]
-      cmd = `${env.join(' ')} ${cmd}`
+      // export, not a prefix: a prefix would only reach the first command of `install && run dev`
+      cmd = `export ${env.join(' ')}; ${cmd}`
     }
     return { cmd, ports, previewPath }
   }

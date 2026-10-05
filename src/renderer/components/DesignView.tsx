@@ -123,7 +123,7 @@ export function DesignView({ s }: { s: Session }) {
           />
         )}
         {overlay && mode === 'side' && (
-          <div className="w-1/2 overflow-auto bg-white">
+          <div className="w-1/2 overflow-auto bg-[var(--webview-bg)]">
             <img src={overlay} alt="" className="block w-full" />
           </div>
         )}

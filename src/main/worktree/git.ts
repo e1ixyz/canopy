@@ -131,8 +131,12 @@ export async function hasUnsafeState(wt: string): Promise<string | null> {
   if (dirty) return `${dirty.split('\n').length} uncommitted change(s)`
   const unpushed = await shTry('git', ['log', '--oneline', '@{u}..'], wt)
   if (unpushed === null) {
-    const local = ((await shTry('git', ['log', '--oneline', '-1'], wt)) ?? '').trim()
-    if (local) return 'branch has no upstream (commits may be unpushed)'
+    // No upstream: only commits that exist on no other branch or remote would be lost.
+    const branch = (await shTry('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], wt))?.trim()
+    const exclude = branch ? [`--exclude=${branch}`] : []
+    const own = Number((await shTry('git', ['rev-list', '--count', 'HEAD', '--not', ...exclude, '--branches', '--remotes'], wt))?.trim() ?? NaN)
+    if (Number.isNaN(own)) return 'branch has no upstream (commits may be unpushed)'
+    if (own > 0) return `${own} commit(s) on no other branch`
   } else if (unpushed.trim()) return `${unpushed.trim().split('\n').length} unpushed commit(s)`
   return null
 }

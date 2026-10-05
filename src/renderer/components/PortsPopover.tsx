@@ -37,7 +37,7 @@ export function PortsPopover() {
   }
 
   const kill = async (pid: number, port: number, sessionId?: string) => {
-    if (!sessionId && !confirm(`Nothing in Orchestrator owns :${port} (pid ${pid}). Kill it anyway?`)) return
+    if (!sessionId && !confirm(`Nothing in Canopy owns :${port} (pid ${pid}). Kill it anyway?`)) return
     const ok = await orch.invoke('ports:kill', pid)
     toast(ok ? `Stopped :${port}` : `Could not stop pid ${pid}`, ok ? 'ok' : 'error')
     setTimeout(load, 700)
@@ -98,7 +98,7 @@ export function PortsPopover() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[12.5px]">
                     {color && <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />}
-                    <span className="truncate text-white/85">{s ? `${s.name} · ${s.branch ?? ''}` : 'not in Orchestrator'}</span>
+                    <span className="truncate text-white/85">{s ? `${s.name} · ${s.branch ?? ''}` : 'not in Canopy'}</span>
                   </div>
                   <div className="truncate font-mono text-[10.5px] text-white/40">
                     {l.command ?? '?'} · pid {l.pid} {l.cwd ? `· ${tildify(l.cwd, orch.homedir)}` : ''}

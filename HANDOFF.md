@@ -1,8 +1,10 @@
-# Orchestrator - handoff
+# Canopy - handoff
 
 A desktop harness that runs many real `claude` CLI sessions in tiles, wires them into a shared bus, and gives each worktree its own ports and browser preview.
 
-_Last updated 2026-10-03._ App icon source: `build/icon.svg` (rendered to `build/icon.icns`).
+_Last updated 2026-10-05._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
+
+The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing names changed: product name, window title, UI copy, the session brief, the icon. Internal names stayed: the repo folder and package name, appId `dev.orchestrator.app`, the userData folder (`main/index.ts` pins it to `Application Support/Orchestrator` so state survives), `~/.orchestrator`, the `ORCH_*` env vars and the `orchestrator` MCP server and tool names.
 
 ## Run it
 
@@ -10,7 +12,7 @@ _Last updated 2026-10-03._ App icon source: `build/icon.svg` (rendered to `build
 bun install          # postinstall rebuilds node-pty against Electron
 bun run dev          # electron-vite dev (HMR for the renderer; main changes need a restart)
 bun run typecheck && bun run test
-bun run install-app  # packaged app → ~/Applications/Orchestrator.app + Desktop alias (keeps the debug server)
+bun run install-app  # packaged app → ~/Applications/Canopy.app + Desktop alias, and removes the old Orchestrator.app (keeps the debug server)
 bun run dist         # release .dmg (arm64 + x64) in dist/, ad-hoc signed, no debug server
 ```
 
@@ -46,7 +48,13 @@ main (Node)                                   renderer (React + Motion)
   tiles.ts      commandFor(): PTY command for deploy/db/host tiles (db URL via ORCH_DB_URL env)
   db.ts / dotenv.ts / railway.ts / hosts.ts / skills.ts   data for those tiles and the palette
   paths.ts      orchHome() = ~/.orchestrator (or ORCH_HOME)
+  naming.ts     suggestBranch(): worktree branch from the first prompt (one-shot `claude -p --model haiku`)
+  termtext.ts   plainText()/TRUST/LIMIT: reading PTY output for status detection
 ```
+
+Appearance: one look with a light and a dark mode, picked by `settings.appearance` (`system`/`light`/`dark`). Main sets `nativeTheme.themeSource` from it (`applyAppearance` in `src/main/index.ts`), so the renderer only reads `prefers-color-scheme`. `useTheme` in `App.tsx` puts `data-mode` on `<html>` and restyles xterm (`setTermPalette` in `lib/terms.ts`). The terminal palette per mode lives in `lib/theme.ts`; the CSS tokens are in `styles.css`. Ember, Console and Desktop 98 were removed on 2026-10-05; an old `theme` key in saved settings is ignored.
+- Tailwind v4 compiles every utility to a CSS variable, so each mode remaps `--color-white` (the foreground ink: `text-white/50`, `bg-white/[0.06]`, `border-white/10`), `--color-black` (wells, scrims), `--color-violet-*` (the accent), radii and fonts. Light modes also flip the status scales (emerald/amber/rose/sky…). New code: keep writing `white`/`violet` classes; use `text-on-accent` on accent fills and `var(--tile-bg)`, `var(--glass)`, `var(--pop-shadow)` etc. for surfaces. No hex colors in components.
+- JetBrains Mono is bundled with `@fontsource/jetbrains-mono` (imported in `main.tsx`); the CSP blocks web fonts.
 
 Session kinds: `claude`, `shell`, `dev` (helper process), plus `deploy`, `db`, `host` (PTYs whose command comes from `Session.target`) and `design` (no process; the renderer shows `DesignView`). Side panels for db/deploy are in `components/SidePanels.tsx`.
 
@@ -101,22 +109,41 @@ Not yet exercised end to end:
 - `--append-system-prompt` is fixed at spawn, so the sibling list in the brief goes stale. Sessions should call `list_sessions` for the live view.
 
 - The Desktop is in iCloud, which keeps re-adding FinderInfo xattrs, and codesign refuses to sign "detritus". `install-app.sh` copies the app to `~/Applications` with `ditto --noextattr`, signs it there (`scripts/sign-adhoc.sh`, inside-out) and only puts an alias on the Desktop.
-- The Desktop is case-insensitive: `~/Desktop/Orchestrator` IS the project folder `~/Desktop/orchestrator`. The alias is named `Orchestrator.app`, and the script only replaces it when it is a plain file.
+- The Desktop is case-insensitive, and the project folder is `~/Desktop/orchestrator`. The alias is named `Canopy.app`, and the script only replaces or removes an alias when it is a plain file, so it never touches the project folder.
 - A modal body must not read its target from the store: sheets keep rendering through their exit animation after the store field is cleared. Pass it in as a prop (see `DeploySetup.tsx`).
 - Tailwind `relative` and `absolute` on one element: `relative` wins and an absolutely-sized child gets 0 height (bit the design webview).
-- `bun run dist` packs into `~/Library/Caches/Orchestrator-dist` and copies the .dmg files back, because codesign rejects the iCloud Desktop's xattrs. `scripts/after-pack.cjs` ad-hoc signs only when `ORCH_ADHOC_SIGN=1`.
-- The packaged app and `bun run dev` share the same state (`~/Library/Application Support/Orchestrator`). Run one at a time.
+- `bun run dist` packs into `~/Library/Caches/Canopy-dist` and copies the .dmg files back, because codesign rejects the iCloud Desktop's xattrs. `scripts/after-pack.cjs` ad-hoc signs only when `ORCH_ADHOC_SIGN=1`.
+- The packaged app and `bun run dev` share the same state (`~/Library/Application Support/Orchestrator`, kept under the old name). Run one at a time.
+- Claude Code's own colors come from its `auto` theme, which asks the terminal for its background (OSC 11) and falls back to `COLORFGBG`. So each xterm palette has an opaque `background` equal to the theme's `--term-bg`, and `hub.ts` sets `COLORFGBG` at spawn. A session started before a light/dark switch keeps its old palette until it restarts; light palettes also set `minimumContrastRatio: 3` as a safety net.
+- Tailwind's `!` utilities sit in a cascade layer, and layered `!important` beats unlayered `!important`. Theme CSS can't override a `!text-…` class, so don't use `!` utilities on hooked elements (see `orch-kbd-accent` in `Dock.tsx`).
+- Claude Code draws spaces as cursor moves (`ESC[nC` and absolute columns `ESC[nG`), so matching its output on stripped text fails ("Itrustthisfolder"). Use `plainText()` from `termtext.ts`, which turns those moves back into spaces first.
+- The shortcut handler in `App.tsx` listens on window in the capture phase and stops propagation. Anything it handles never reaches React, so it returns early for ⌘↵ in text fields and for tile/page shortcuts while a sheet is open (`modalOpen`).
+- IPC handlers reject any sender that isn't the app's own top frame (`trusted()` in `src/main/index.ts`). A new window or webview that needs IPC has to be allowed there explicitly.
+- In dark appearance a `<webview>` page that sets no colors renders light text on a transparent canvas, so `styles.css` gives the webview a dark backing in dark mode.
 
 Built 2026-10-03 (roadmap 11–18, one commit each after `87a178e`), each checked in an isolated dev instance:
 - Stage 1 for others: prompts registry + Settings → Prompts (your old wording is saved as overrides in your real `state.json`; a backup is `state.json.bak-2026-10-03`), adapters in `~/.orchestrator/adapters` (etwal.json moved there, with its QA brief), `examples/adapter.example.json`, debug server compiled out unless `ORCH_DEBUG_BUILD=1`, `bun run dist`. A vitest test fails on any `/Users/` path in `src/` or `examples/`.
 - Handoff shelf: save / save-and-close / pick up / resume original / import, verified with Haiku sessions.
 - DB tile (psql connected, seed button ran), Railway tile (logs streamed from share-a-story production, env tabs, vars diff checked masked only), host tiles (ssh to office-dj spawns; the box didn't answer), skills in the palette, design tile with Compare and mark-up.
 
+Built 2026-10-05: themes and the Appearance setting (the extra themes were later cut, leaving light and dark). Every screen (workspace, launcher, overview, palette, bus, settings, guide, new session, worktrees, ports and usage popovers, tile menu, context popover, preview, exited state, broadcast, goal, ship, design, deploy setup, screenshot set, mark-up, toasts) was screenshotted in every theme and mode through the debug server in an isolated instance, and the bugs found were fixed: git strip and overview rows overflowing, launcher stats wrapping, the SSH host inputs collapsing, the tile menu clipping inside short tiles, and the dark-mode preview.
+
+Built 2026-10-05: roadmap 21. A new worktree's branch is optional (Settings toggle `nameWorktrees`, on by default). `src/main/naming.ts` asks Haiku for a slug (no hooks, tools, MCP or saved session; 10 s timeout, falls back to the prompt's first words), picks the prefix from `adapter.branchPrefix`, else the prefix most recent local branches share, else `orch/`, and adds `-2`… on collisions. The sheet suggests while you type (`worktree:suggestName`); `spawn_session` without a branch uses the same path. Verified in an isolated instance on a scratch repo (`feat/dark-mode-toggle`, `feat/test-date-formatting`, `-2` on a taken name).
+
+Full QA pass the same day (live in an isolated instance plus three code reviews: main process, renderer, theming). Fixed:
+- Sessions and shortcuts: the "trust this folder" dialog (every new worktree) shows Needs you instead of Starting forever; ⌘W/⌘↵/⌘1-9 no longer act on tiles hidden behind a sheet or the launcher (⌘W closes the sheet); ⌘↵ reaches sheets and text fields; sheets take focus from a terminal so Escape and typing go to them; ⌘↵ respects Start's busy/conflict guard; overlapping starts of one session (restore + Restart) queue instead of spawning two processes; the tile menu's Close asks first for a working session.
+- Worktrees: removal checks for uncommitted work before stopping the sessions inside (and asks first in the UI); a fresh branch only warns about commits that exist on no other branch; a worktree deleted outside the app can be removed and frees its ports; adapter `ports`/`envPortKeys` are honored; the dev command exports its port env so it reaches `run dev` after an install.
+- Bus and goals: "Everyone on <project>" from the drawer now reaches that project (the GUI sends `projectId`); a dead recipient resets to the project; a QA that stops without a verdict is nudged once, and a goal whose QA exits or can't start goes back to running with attention.
+- Robustness: a .DS_Store in the handoff shelf no longer breaks the list; same-named projects don't see each other's handoffs; handoffs are collected for 30 min (not the 5-min spawn window); limit alerts match only Claude Code's banners; ports are re-announced after a restart; Ship reads `git status -z` (non-ASCII paths); failed invokes toast instead of hanging (Ship plan, Goal, Deploy setup, Worktrees, db/deploy tiles, bus send).
+- Security: the main window can't be navigated away (a dropped link/file), and IPC answers only the app's own top frame.
+- UI: popovers close from their trigger; Settings › Prompts edits a local draft; palette "This tile" actions follow the tile kind like the tile menu; the new-session sheet falls back to an offered tab and ignores stale results after a project switch; scroll areas inside modals fit; keyboard access for page tabs and launcher pin/handoff controls; tile headers keep the name and pills on one line (task truncates first).
+- Themes: terminal fonts load before xterm measures, themed xterm scrollbars, `--webview-bg` for Compare and mark-up captures, readable spawn-request names and own bus avatar in light mode, guide scrim, preview frame edge.
+
 Not exercised: the Railway SSH button (it would open a production shell), running a skill in a scratch session, Claude-over-ssh on a reachable host, Figma/claude.ai logins in the design profile, the x64 dmg on an Intel Mac.
 
 ## Next
 
-`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–10 are built. Items 1–18 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update) and 20 (Linux/Windows). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
+`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–18 and 21 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update), 20 (Linux/Windows) and 22 (tile borders that warn at 150k/200k/250k context tokens). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
 
 
 1. Run a worktree through the etwal adapter on a scratch branch and check that the port collision repair rewrote `.wt-run.sh` and `.env`.

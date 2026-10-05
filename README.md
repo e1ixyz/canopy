@@ -1,4 +1,4 @@
-# Orchestrator
+# Canopy
 
 A desktop app for running many Claude Code sessions side by side. Pick a project, open as many sessions as you want, give each one its own git worktree and ports, and watch their dev servers in a browser pane next to each terminal. Sessions talk to each other over a shared bus, so they can split work without stepping on the same files.
 
@@ -10,7 +10,7 @@ Every tile runs the real `claude` CLI in a PTY. Slash commands, your skills, plu
 bun install        # also rebuilds node-pty for Electron
 bun run dev        # hot-reloading dev build
 bun run app        # production build, run locally
-bun run package    # Orchestrator.app in dist/
+bun run package    # Canopy.app in dist/
 bun run install-app  # build, install to ~/Applications, ad-hoc sign, alias on the Desktop
 bun run dist       # release .dmg files (arm64 and x64), ad-hoc signed, no debug server
 bun run test       # unit tests (vitest)
@@ -21,13 +21,13 @@ Needs macOS, Node 22+, bun, and `claude` on your login shell's PATH. The Railway
 
 ### Installing a .dmg on another Mac
 
-The release build is ad-hoc signed, not notarized, so macOS won't open it with a double-click the first time. Drag Orchestrator to Applications, then right-click it and choose Open (on macOS 15 and later: try to open it once, then System Settings → Privacy & Security → Open Anyway). If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Orchestrator.app`.
+The release build is ad-hoc signed, not notarized, so macOS won't open it with a double-click the first time. Drag Canopy to Applications, then right-click it and choose Open (on macOS 15 and later: try to open it once, then System Settings → Privacy & Security → Open Anyway). If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Canopy.app`.
 
 ## What you get
 
 - A launcher built from your Claude Code history (`~/.claude/history.jsonl`), with pinning and search.
 - Pages of tiles that reflow with spring animations. Double-click a header to focus a tile, drag a header to reorder or drop it on another page's tab, and ⇧-click headers to select tiles for a broadcast prompt.
-- One checkout per session. Starting a second session in a busy checkout offers a fresh worktree, a read-only reviewer, or an override.
+- One checkout per session. Starting a second session in a busy checkout offers a fresh worktree, a read-only reviewer, or an override. Leave a new worktree's branch empty and it is named from your first prompt.
 - Worktrees with reserved port pairs. The harness keeps its own reservations, so a stopped worktree never loses its ports to the next one. Each new worktree gets `.env` copied with the ports rewritten and `HANDOFF.md` linked to the primary's.
 - A browser pane per tile (⌘⇧P) with a separate cookie jar per worktree, device widths, a dark/light toggle, DevTools, and screenshots. ⇧-click the camera to paste the screenshot path into the session.
 - A session bus: `send_message`, `broadcast`, `read_inbox`, `claim`/`release`/`who_owns`, `set_status`, `get_ports`, `open_preview`, `spawn_session` and `handoff`. Idle sessions wake when a message arrives, and busy ones get it when their turn ends.
@@ -43,6 +43,7 @@ The release build is ad-hoc signed, not notarized, so macOS won't open it with a
 - Tiles beyond Claude: psql on the checkout's `DATABASE_URL` with its seed and migrate scripts as buttons; `railway logs` with environment tabs and a variables diff against your `.env`; ssh shells (or Claude) on hosts from `~/.ssh/config`; and a design URL (claude.ai artifact, Figma) beside a session, with the live preview overlaid for comparison.
 - Mark-up for preview screenshots (arrows, boxes, pen) before the path goes into a session.
 - Your skills in the palette (⌘K, then `/`).
+- Light and dark modes that follow macOS unless you pin one in Settings. Terminals restyle to match.
 
 ## Prompts
 

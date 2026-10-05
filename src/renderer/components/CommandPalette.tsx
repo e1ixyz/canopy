@@ -87,10 +87,15 @@ function Body() {
       { id: 'overview', group: 'View', label: 'Overview of every session', hint: '⌘⇧O', icon: <LayoutDashboard size={14} />, run: () => st.set({ overviewOpen: true }) },
       { id: 'broadcast', group: 'View', label: 'Broadcast a prompt to selected tiles', icon: <Megaphone size={14} />, run: () => st.set({ broadcastOpen: true }) },
       { id: 'worktrees', group: 'View', label: 'Worktrees & ports', icon: <GitFork size={14} />, run: () => st.set({ worktreesOpen: true }) },
-      { id: 'help', group: 'View', label: 'Guide: how Orchestrator works', hint: '⌘/', icon: <BookOpen size={14} />, run: () => st.set({ helpOpen: true }) },
+      { id: 'help', group: 'View', label: 'Guide: how Canopy works', hint: '⌘/', icon: <BookOpen size={14} />, run: () => st.set({ helpOpen: true }) },
       { id: 'settings', group: 'View', label: 'Settings', icon: <Settings2 size={14} />, run: () => st.set({ settingsOpen: true }) },
     ]
     if (activeTile && activeSession) {
+      const claude = activeSession.kind === 'claude'
+      const repo = activeSession.kind !== 'host' && activeSession.kind !== 'design'
+      // Same rules as the tile menu: Claude-only actions would type into psql or ssh otherwise.
+      const only = new Set([...(claude ? [] : ['goal', 'ship', 'fresh', 'save-handoff', 'design', 'clear']), ...(repo ? [] : ['pr', 'db', 'railway', 'dev', 'shots'])])
+      const before = c.length
       c.push(
         { id: 'goal', group: 'This tile', label: `Goal for ${activeSession.name}…`, icon: <Sparkles size={14} />, run: () => st.set({ goalFor: activeSession.id }) },
         { id: 'ship', group: 'This tile', label: `Ship from ${activeSession.name}…`, icon: <Play size={14} />, run: () => st.set({ shipFor: activeSession.id }) },
@@ -120,6 +125,7 @@ function Body() {
           run: () => orch.invoke('dev:start', activeSession.cwd, projectPath ?? activeSession.cwd).catch((e) => st.toast(String(e.message), 'error')),
         },
       )
+      for (let i = c.length - 1; i >= before; i--) if (only.has(c[i].id)) c.splice(i, 1)
     }
     for (const p of st.pages) c.push({ id: `page-${p.id}`, group: 'Pages', label: `Go to ${p.name}`, icon: <ArrowRight size={14} />, run: () => st.setActivePage(p.id) })
     for (const s of Object.values(st.sessions)) {
@@ -215,7 +221,7 @@ function Body() {
             }
           }}
           placeholder="Run a command, jump to a session, search scrollback, / for skills…"
-          className="h-14 flex-1 bg-transparent text-[15px] text-white placeholder-white/30 outline-none"
+          className="h-14 min-w-0 flex-1 bg-transparent text-[15px] text-ellipsis text-white placeholder-white/30 outline-none"
         />
         <kbd>esc</kbd>
       </div>

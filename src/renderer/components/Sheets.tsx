@@ -137,11 +137,19 @@ function GoalBody({ id }: { id: string }) {
   const [stop, setStop] = useState('Every flow touched is tested and QA finds no new bugs')
   const [rounds, setRounds] = useState(5)
   const [qa, setQa] = useState(true)
+  const [busy, setBusy] = useState(false)
   const start = async () => {
-    if (!goal.trim()) return
-    await orch.invoke('goal:start', id, { goal, stop, maxRounds: rounds, qa })
-    toast(`${s?.name} is on round 1`, 'ok')
-    set({ goalFor: null })
+    if (!goal.trim() || busy) return
+    setBusy(true)
+    try {
+      await orch.invoke('goal:start', id, { goal, stop, maxRounds: rounds, qa })
+      toast(`${s?.name} is on round 1`, 'ok')
+      set({ goalFor: null })
+    } catch (e) {
+      toast((e as Error).message, 'error')
+    } finally {
+      setBusy(false)
+    }
   }
   return (
     <div className="space-y-5 p-6" onKeyDown={(e) => e.key === 'Enter' && e.metaKey && start()}>
@@ -169,7 +177,7 @@ function GoalBody({ id }: { id: string }) {
       <div className="flex justify-end gap-2">
         <Button onClick={() => set({ goalFor: null })}>Cancel</Button>
         <Button tone="primary" disabled={!goal.trim()} onClick={start}>
-          Start round 1 <kbd className="!bg-white/15 !text-white/80">⌘↵</kbd>
+          Start round 1 <kbd>⌘↵</kbd>
         </Button>
       </div>
     </div>
@@ -196,11 +204,18 @@ function ShipBody({ id }: { id: string }) {
   const [targets, setTargets] = useState(false)
 
   useEffect(() => {
-    orch.invoke('prompts:shipTargets', id).then(setTargets)
-    orch.invoke('ship:plan', id).then((p) => {
-      setPlan(p)
-      setPicked(new Set(p.files.filter((f) => f.owner === 'mine').map((f) => f.path)))
-    })
+    orch.invoke('prompts:shipTargets', id).then(setTargets).catch(() => {})
+    orch
+      .invoke('ship:plan', id)
+      .then((p) => {
+        setPlan(p)
+        setPicked(new Set(p.files.filter((f) => f.owner === 'mine').map((f) => f.path)))
+      })
+      .catch((e) => {
+        // e.g. the session was replaced by a fresh handoff: don't sit on "Reading the worktree…" forever
+        useApp.getState().toast(`Can't ship: ${(e as Error).message}`, 'error')
+        useApp.getState().set({ shipFor: null })
+      })
   }, [id])
 
   const others = useMemo(() => plan?.files.filter((f) => f.owner !== 'mine') ?? [], [plan])

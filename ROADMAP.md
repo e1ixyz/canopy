@@ -1,6 +1,6 @@
-# Orchestrator roadmap
+# Canopy roadmap
 
-_Written 2026-10-02. Items 1–10 were built the same day and 11–18 on 2026-10-03 (see HANDOFF.md, Current state). Still open: notarization and publishing from 18, and all of 19 and 20._
+_Written 2026-10-02. Items 1–10 were built the same day and 11–18 on 2026-10-03 (see HANDOFF.md, Current state). Still open: notarization and publishing from 18, all of 19 and 20, and 22 (added 2026-10-03). 21 was built on 2026-10-05._
 
 _Based on your Claude Code history: 6,441 prompts sent between 2026-05-04 and 2026-10-02 (`~/.claude/history.jsonl`), plus tool calls across 501 session transcripts in `~/.claude/projects`._
 
@@ -71,6 +71,22 @@ You asked for a handoff saved to a file 43 times (`/handoff-chat .md desktop`). 
 
 Save handoff, from the tile menu or the context ring, has the session write the handoff the same way. The app stores it as markdown in `~/.orchestrator/handoffs/<project>/<date>-<slug>.md`, together with the project, worktree, branch, session name and the transcript id. Saving can also close the session, which is the "I'm done for today" move. The launcher card shows a project's saved handoffs, and the new-session sheet gets a fourth tab, Pick up, next to Resume. Picking one starts a fresh session in the same worktree, seeded with the handoff. If the worktree is gone, the session starts in the primary checkout and is told which branch to restore. Each handoff also records the transcript id, so "Resume the original conversation instead" is one click when the full history matters more than a clean context. A saved handoff can be renamed, opened in an editor, or deleted, and pickups mark it used so the list stays short.
 
+### 21. Worktree names from the first prompt (built)
+Today a new worktree needs a branch name before anything starts, and the New worktree tab won't go without one. You usually know the task, not the name. A Settings toggle, Name worktrees from the first prompt, makes the branch field optional. Leave it empty, write the first prompt, and the app names the worktree for you.
+
+The name comes from a one-shot `claude -p --model haiku` call on the prompt. It runs on the user's own Claude Code login, so there is no new key to set up. The call returns a short kebab-case slug, which the app turns into `<prefix>/<slug>`. The prefix comes from the adapter, or from the repo's recent branches (`feat/` for etwal), else `orch/`. If the branch already exists, the name gets a `-2`. If the call fails or takes more than a few seconds, the slug falls back to the prompt's first few words through the `slugify` that the handoff shelf already uses (`src/main/handoffs.ts`).
+
+Renaming a worktree after the fact means moving its folder, renaming its branch and keeping its reserved ports, so the name is settled before anything is created. While you type the prompt, the sheet asks for a suggestion in the background and shows it in the branch field, greyed. Start accepts it, and you can overwrite it first. Sessions that `spawn_session` with `worktree: "new"` and no branch get the same naming in place of today's `orch/<name>-<hex>` (`requestSpawn` in `src/main/hub.ts`). The tile and session name can come from the same call.
+
+### 22. Tile borders that warn about context size
+The context ring is 16 pixels wide and only pulses at 80%. On a 1M-token model, 80% is 800k, far past the point where a session gets slow and forgetful. You want to know at a glance, across every tile on the canvas, which session is getting heavy. The tile border should tell you.
+
+The thresholds are absolute token counts, so they mean the same thing on 200k and 1M models. Under 150k the border stays as it is. At 150k it turns yellow. At 200k it turns red. At 250k it turns red and flashes, a slow pulse on the border color, until the session clears, compacts or hands off. The ring keeps its percentage, and its popover adds the token count and the next threshold ("212k used, flashes at 250k").
+
+`contextInfo` in `src/main/recents.ts` already computes the used tokens and throws them away after turning them into a percent. It should return `used` as well, and the session state should carry a `contextTokens` next to `contextPct` (`src/shared/types.ts`). `Tile.tsx` maps the count to a border class. The flash is a CSS keyframe on `border-color` and `box-shadow`, not a framer-motion loop, so ten heavy tiles don't cost ten animation frames each tick, and it respects `prefers-reduced-motion` by holding solid red. The three numbers go in Settings with these defaults.
+
+Open question before building: the border already glows amber when a session is waiting for input (`glow` in `Tile.tsx`), so a yellow border at 150k would read as "needs you." The first step needs its own look, such as orange or a thinner, dashed amber line, and a waiting session at 250k needs a rule for which signal wins. The ring has the same issue in a smaller way: it already turns amber above 65% and rose above 85% (`Ring` in `src/renderer/components/ui.tsx`), so on a 1M model it can show purple while the border is red. Ring colors should follow the same token thresholds.
+
 ## Later: the rest of your machine
 
 ### 12. Saved remote hosts (built)
@@ -114,7 +130,7 @@ Auto-update through electron-updater (signed builds only), plus a Homebrew cask.
 
 A plain privacy note. Everything stays local. The app reads `~/.claude` history and transcripts, keeps its state in Application Support, sends no telemetry, and never edits the user's own Claude settings files, because hooks and MCP are injected per session. That last point belongs on the download page.
 
-Naming and license. "Orchestrator for Claude Code" works as a description. Claude or Anthropic branding stays out of the app name and icon. Pick a license (MIT if it goes open source).
+Naming and license. The app is now Canopy (renamed 2026-10-05); "Canopy for Claude Code" works as a description. Claude or Anthropic branding stays out of the app name and icon. Pick a license (MIT if it goes open source).
 
 ### 20. Stage 3: Linux, then Windows (several weeks)
 Most of the app is portable. The parts that are not:

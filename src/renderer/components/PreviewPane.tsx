@@ -113,6 +113,11 @@ export function PreviewPane({
       } catch {
         /* never got ready */
       }
+      // The webContents dies with this webview; screenshot sets and Compare must not reach for it.
+      useApp.setState((st) => {
+        const { [session.id]: _gone, ...rest } = st.previewWc
+        return { previewWc: rest }
+      })
       w.removeEventListener('dom-ready', onReady)
       w.removeEventListener('did-navigate', onNav)
       w.removeEventListener('did-navigate-in-page', onNav)
@@ -331,7 +336,7 @@ export function PreviewPane({
       {/* page */}
       <div ref={frame} className="relative min-h-0 flex-1 overflow-hidden">
         <div
-          className={cx('absolute top-0 left-1/2 origin-top', !!fixed && 'shadow-[0_0_0_1px_rgba(255,255,255,0.08)]')}
+          className={cx('absolute top-0 left-1/2 origin-top', !!fixed && 'shadow-[0_0_0_1px_var(--hairline-strong)]')}
           style={{
             width: fixed ?? '100%',
             height: `${100 / scale}%`,
@@ -348,7 +353,7 @@ export function PreviewPane({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={spring.bouncy}
-              className="absolute inset-0 grid place-items-center bg-[#0b0b12]/90 backdrop-blur"
+              className="absolute inset-0 grid place-items-center bg-[color-mix(in_oklab,var(--tile-bg)_92%,transparent)] backdrop-blur"
             >
               <div className="max-w-xs text-center">
                 <div className="mb-1 text-[14px] font-semibold text-white/85">{failed ? 'Nothing answered there' : 'No dev server yet'}</div>
@@ -357,7 +362,7 @@ export function PreviewPane({
                 </div>
                 <button
                   onClick={startDev}
-                  className="no-drag inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3.5 py-2 text-[12.5px] font-semibold text-black shadow-lg"
+                  className="no-drag inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-[12.5px] font-semibold text-black shadow-lg"
                 >
                   <Play size={13} /> Start dev server
                 </button>

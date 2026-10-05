@@ -46,6 +46,7 @@ export function qaPrompt(g: GoalState, workerName: string, summary: string) {
  * Unclean verdicts start the next round with the findings, up to maxRounds.
  */
 export class GoalController {
+  private qaNudged = new Map<string, number>()
   goals = new Map<string, GoalState>()
 
   constructor(
@@ -89,7 +90,15 @@ export class GoalController {
     if (r.done && g.qa) {
       g.status = 'verifying'
       this.deps.save(sessionId, g)
-      g.qaSessionId = await this.deps.qa(sessionId, g.qaSessionId, qaPrompt(g, this.nameOf(sessionId), r.summary))
+      try {
+        g.qaSessionId = await this.deps.qa(sessionId, g.qaSessionId, qaPrompt(g, this.nameOf(sessionId), r.summary))
+      } catch (e) {
+        // No QA could start: don't leave the goal waiting on a verdict that never comes.
+        g.status = 'running'
+        this.deps.save(sessionId, g)
+        this.deps.attention(sessionId, `QA could not start: ${(e as Error).message}`)
+        return 'The QA session could not start, so this round is unverified. Tell the user, then end your turn.'
+      }
       this.deps.save(sessionId, g)
       return 'A QA session is verifying this round. End your turn now; if it finds problems they come back to you as the next round.'
     }
@@ -122,8 +131,15 @@ export class GoalController {
     return `Thanks. Your findings went back to ${this.nameOf(workerId)} as round ${g.round}. End your turn.`
   }
 
-  /** Stop hook: nudge once per round when the worker stops without reporting */
+  /** Stop hook: nudge once per round when the worker stops without reporting, or the QA without a verdict */
   onStop(sessionId: string): string | null {
+    const qa = [...this.goals.entries()].find(([, x]) => x.qaSessionId === sessionId && x.status === 'verifying')
+    if (qa) {
+      const [, g] = qa
+      if (this.qaNudged.get(sessionId) === g.round) return null
+      this.qaNudged.set(sessionId, g.round)
+      return `You are verifying round ${g.round} of a goal. Call goal_verdict now (clean: true, or clean: false with findings) before you stop.`
+    }
     const g = this.goals.get(sessionId)
     if (!g || g.status !== 'running') return null
     const reported = g.history.some((h) => h.round === g.round)
@@ -131,6 +147,17 @@ export class GoalController {
     g.nudged = g.round
     this.deps.save(sessionId, g)
     return `You are working toward a goal (${roundLine(g)}). If this round is finished, call goal_report now. If not, keep going.`
+  }
+
+  /** A session exited or was closed: a goal waiting on it as QA goes back to running, with attention on the worker */
+  onSessionGone(sessionId: string) {
+    for (const [workerId, g] of this.goals) {
+      if (g.qaSessionId !== sessionId || g.status !== 'verifying') continue
+      g.status = 'running'
+      g.qaSessionId = undefined
+      this.deps.save(workerId, g)
+      this.deps.attention(workerId, `QA for round ${g.round} ended without a verdict`)
+    }
   }
 
   private finish(sessionId: string, g: GoalState, text: string) {

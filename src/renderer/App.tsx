@@ -1,9 +1,8 @@
 import { AnnotateSheet } from './components/AnnotateSheet'
 import { DeploySetupSheet } from './components/DeploySetup'
 import { DesignSheet } from './components/DesignView'
-import { AnimatePresence, LayoutGroup, motion, MotionConfig } from 'motion/react'
-import { useEffect } from 'react'
-import { useShallow } from 'zustand/react/shallow'
+import { AnimatePresence, LayoutGroup, MotionConfig } from 'motion/react'
+import { useEffect, useState } from 'react'
 import { BusDrawer } from './components/BusDrawer'
 import { HelpPanel } from './components/HelpPanel'
 import { GoalSheet, ShipSheet, ShotSetSheet } from './components/Sheets'
@@ -16,36 +15,55 @@ import { BroadcastSheet, SettingsPanel, WorktreesPanel } from './components/Pane
 import { Packets, SpawnConfirms, Toasts } from './components/Overlays'
 import { TopBar } from './components/TopBar'
 import { Workspace } from './components/Workspace'
-import { focusTerm } from './lib/terms'
+import { focusTerm, setTermPalette } from './lib/terms'
+import { applyMode, currentMode, onModeChange, termPalette, type Mode } from './lib/theme'
 import { findTile, useApp } from './store/app'
 
-function Background() {
-  const colors = useApp(
-    useShallow((s) => {
-      const live = new Set(Object.values(s.sessions).map((x) => x.projectId))
-      return s.projects.filter((p) => live.has(p.id)).map((p) => p.color)
-    }),
+/** Puts the resolved light/dark mode on <html>, and restyles terminals to match */
+function useTheme() {
+  const [mode, setMode] = useState<Mode>(currentMode)
+  useEffect(() => onModeChange(setMode), [])
+  useEffect(() => {
+    applyMode(mode)
+    setTermPalette(termPalette(mode))
+  }, [mode])
+}
+
+/** Any sheet, panel or full-screen overlay that sits over the workspace */
+function modalOpen(st: ReturnType<typeof useApp.getState>) {
+  return !!(
+    st.paletteOpen ||
+    st.helpOpen ||
+    st.settingsOpen ||
+    st.overviewOpen ||
+    st.worktreesOpen ||
+    st.broadcastOpen ||
+    st.newSession ||
+    st.goalFor ||
+    st.shipFor ||
+    st.designFor ||
+    st.deploySetup ||
+    st.shotSet ||
+    st.annotate
   )
-  const palette = [...colors, '#8b5cf6', '#0ea5e9', '#ec4899'].slice(0, 3)
-  return (
-    <div className="noise pointer-events-none absolute inset-0 overflow-hidden">
-      {palette.map((c, i) => (
-        <motion.div
-          key={i}
-          className="blob"
-          style={{ width: 620, height: 620, background: c }}
-          initial={false}
-          animate={{
-            x: [[-200, 100, -100][i], [200, -150, 300][i], [-200, 100, -100][i]],
-            y: [[-150, 400, 600][i], [100, 200, 300][i], [-150, 400, 600][i]],
-            background: c,
-          }}
-          transition={{ duration: 28 + i * 6, repeat: Infinity, ease: 'easeInOut', background: { duration: 2 } }}
-        />
-      ))}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.04),transparent_60%)]" />
-    </div>
-  )
+}
+
+function closeModals() {
+  useApp.getState().set({
+    paletteOpen: false,
+    helpOpen: false,
+    settingsOpen: false,
+    overviewOpen: false,
+    worktreesOpen: false,
+    broadcastOpen: false,
+    newSession: null,
+    goalFor: null,
+    shipFor: null,
+    designFor: null,
+    deploySetup: null,
+    shotSet: null,
+    annotate: null,
+  })
 }
 
 function useShortcuts() {
@@ -58,6 +76,21 @@ function useShortcuts() {
       const session = activeTile ? st.sessions[activeTile.tile.sessionId] : undefined
       const projectPath = st.projects.find((p) => p.id === session?.projectId)?.path ?? st.projects[0]?.path
       const k = e.key.toLowerCase()
+      // ⌘↵ in a text field belongs to that field (sheets submit with it); xterm's own textarea excepted.
+      const el = e.target as HTMLElement | null
+      const editable = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) && !el.classList.contains('xterm-helper-textarea')
+      if (k === 'enter' && editable) return
+      // With a sheet or panel open, tile and page shortcuts would act on the workspace hidden behind it.
+      if (k !== 'k' && k !== '/' && modalOpen(st)) {
+        if (k !== 'w') return
+        e.preventDefault()
+        e.stopPropagation()
+        closeModals()
+        return
+      }
+      // Tile shortcuts act on a tile you can see: not from behind the launcher.
+      const tileScoped = k === 'w' || k === 'enter' || /^[1-9]$/.test(k) || (k === 'p' && e.shiftKey)
+      if (tileScoped && st.view !== 'workspace') return
       let handled = true
       if (k === 'k') st.set({ paletteOpen: !st.paletteOpen })
       else if (k === '/') st.set({ helpOpen: !st.helpOpen })
@@ -102,11 +135,12 @@ export function App() {
     init()
   }, [init])
   useShortcuts()
+  useTheme()
 
   return (
     <MotionConfig reducedMotion={settings.reduceMotion ? 'always' : 'user'}>
       <div className="relative flex h-full flex-col">
-        <Background />
+        <div className="orch-backdrop pointer-events-none absolute inset-0" />
         <LayoutGroup>
           <TopBar />
           <div className="relative min-h-0 flex-1">

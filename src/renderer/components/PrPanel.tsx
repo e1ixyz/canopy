@@ -47,7 +47,7 @@ export function PrPanel({ s, tileId, onClose }: { s: Session; tileId: string; on
       exit={{ x: '100%', opacity: 0 }}
       transition={spring.layout}
       onMouseDown={(e) => e.stopPropagation()}
-      className="absolute top-0 right-0 bottom-0 z-30 flex w-[min(420px,92%)] flex-col border-l border-white/[0.08] bg-[#0f0f18]/96 shadow-[-30px_0_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-xl"
+      className="absolute top-0 right-0 bottom-0 z-30 flex w-[min(420px,92%)] flex-col border-l border-white/[0.08] bg-[var(--glass)] shadow-[var(--pop-shadow)]"
     >
       <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-3">
         <GitPullRequestDraft size={15} className="text-violet-300" />

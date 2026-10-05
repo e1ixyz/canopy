@@ -14,6 +14,7 @@
   "envPortKeys": { "web": ["VITE_PORT"], "api": ["PORT"] },
   "symlinks": [".env"],
   "devCommand": "bun run dev",
+  "branchPrefix": "feat/",
   "previewPath": "/login",
   "actions": [
     { "id": "lint", "label": "Lint", "command": "bun run lint", "show": "tile" }

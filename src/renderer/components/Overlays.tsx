@@ -56,11 +56,15 @@ export function SpawnConfirms() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 80, scale: 0.9 }}
             transition={spring.bouncy}
-            className="glass rounded-2xl p-4 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]"
+            className="glass rounded-2xl p-4 shadow-[var(--pop-shadow)]"
           >
             <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold">
               <Sparkles size={14} className="text-violet-300" />
-              <span style={{ color: hashColor(c.by) }}>{c.by}</span> wants a new session
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: hashColor(c.by) }} />
+                {c.by}
+              </span>
+              wants a new session
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5 text-[11px]">
               {c.req.role && <span className="rounded-md bg-sky-400/15 px-1.5 py-0.5 text-sky-200">{c.req.role}</span>}
@@ -120,12 +124,12 @@ function PacketDot({ p }: { p: Packet }) {
       { duration: 1.1, ease: [0.45, 0, 0.2, 1] },
     ).then(done)
   }, [p, animate, scope])
-  const color = p.kind === 'handoff' ? '#f0abfc' : p.kind === 'broadcast' ? '#fcd34d' : '#a5b4fc'
+  const color = p.kind === 'handoff' ? 'var(--color-fuchsia-400)' : p.kind === 'broadcast' ? 'var(--color-amber-400)' : 'var(--color-indigo-400)'
   return (
     <div
       ref={scope}
       className="absolute top-0 left-0 -mt-2 -ml-2 h-4 w-4 rounded-full"
-      style={{ background: color, boxShadow: `0 0 16px 6px ${color}, 0 0 50px 10px ${color}66`, opacity: 0 }}
+      style={{ background: color, boxShadow: `0 0 16px 6px ${color}, 0 0 50px 10px color-mix(in oklab, ${color} 40%, transparent)`, opacity: 0 }}
     />
   )
 }

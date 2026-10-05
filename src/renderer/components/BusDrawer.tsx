@@ -19,7 +19,7 @@ export function BusDrawer() {
           animate={{ x: 0, opacity: 1, scale: 1 }}
           exit={{ x: 420, opacity: 0, scale: 0.96 }}
           transition={spring.bouncy}
-          className="glass absolute top-14 right-3 bottom-3 z-40 flex w-[400px] flex-col overflow-hidden rounded-3xl shadow-[0_30px_90px_-20px_rgba(0,0,0,0.85)]"
+          className="glass absolute top-14 right-3 bottom-3 z-40 flex w-[400px] flex-col overflow-hidden rounded-3xl shadow-[var(--pop-shadow)]"
         >
           <div className="flex items-center gap-2 px-4 pt-4 pb-3">
             <div className="flex-1">
@@ -70,7 +70,15 @@ function useName() {
 }
 
 function Feed() {
-  const { messages, sessions, toast } = useApp()
+  const { messages, sessions, toast, projects } = useApp()
+  // "Everyone on the project" means the project of the tile you're working in
+  const activeProjectId = useApp((st) => {
+    const hit = st.activeTileId ? st.pages.flatMap((p) => p.tiles).find((t) => t.id === st.activeTileId) : undefined
+    const page = st.pages.find((p) => p.id === st.activePageId)
+    const sid = hit?.sessionId ?? page?.tiles[0]?.sessionId
+    return sid ? st.sessions[sid]?.projectId : undefined
+  })
+  const activeProject = projects.find((p) => p.id === activeProjectId)
   const name = useName()
   const end = useRef<HTMLDivElement>(null)
   const [to, setTo] = useState('project')
@@ -85,12 +93,21 @@ function Feed() {
     end.current?.scrollIntoView({ behavior: 'smooth' })
   }, [shown.length])
   const claude = Object.values(sessions).filter((s) => s.kind === 'claude' && s.status !== 'exited')
+  // A recipient that exited or was closed drops out of the select; don't keep sending to it.
+  useEffect(() => {
+    if (to !== 'project' && !claude.some((s) => s.id === to)) setTo('project')
+  }, [to, claude])
 
   const send = async () => {
     if (!body.trim()) return
-    await orch.invoke('bus:send', { to, body: body.trim(), wake })
-    setBody('')
-    toast(`Sent to ${name(to)}`, 'ok')
+    try {
+      if (to === 'project' && !activeProjectId) return toast('Open a tile of the project first, or pick a session', 'warn')
+      await orch.invoke('bus:send', { to, body: body.trim(), wake, projectId: to === 'project' ? activeProjectId : undefined })
+      setBody('')
+      toast(`Sent to ${to === 'project' ? `everyone on ${activeProject?.name ?? 'the project'}` : name(to)}`, 'ok')
+    } catch (e) {
+      toast((e as Error).message, 'error')
+    }
   }
 
   return (
@@ -117,7 +134,7 @@ function Feed() {
       <div className="border-t border-white/[0.06] p-3">
         <div className="mb-2 flex items-center gap-2">
           <select value={to} onChange={(e) => setTo(e.target.value)} className="no-drag h-7 rounded-lg border border-white/[0.08] bg-black/30 px-2 text-[12px] text-white/80 outline-none">
-            <option value="project">Everyone on the project</option>
+            <option value="project">Everyone on {activeProject?.name ?? 'the project'}</option>
             <option value="*">Every session</option>
             {claude.map((s) => (
               <option key={s.id} value={s.id}>
@@ -152,7 +169,7 @@ function Feed() {
             whileTap={{ scale: 0.9 }}
             transition={spring.bouncy}
             onClick={send}
-            className="no-drag grid w-10 place-items-center rounded-xl bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-lg"
+            className="no-drag grid w-10 place-items-center orch-btn-primary rounded-xl bg-violet-500 text-on-accent"
           >
             <Send size={15} />
           </motion.button>
@@ -166,7 +183,7 @@ function Bubble({ m, name }: { m: BusMessage; name: (id: string) => string }) {
   const jump = useApp((s) => s.jumpToSession)
   const mine = m.from === 'user'
   const sys = m.kind !== 'message' && m.kind !== 'handoff' && m.kind !== 'broadcast'
-  const color = mine ? '#a78bfa' : hashColor(name(m.from))
+  const color = mine ? 'var(--color-violet-400)' : hashColor(name(m.from))
   if (sys)
     return (
       <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={spring.snappy} className="flex items-center gap-2 px-2 text-[11px] text-white/35">
@@ -185,8 +202,11 @@ function Bubble({ m, name }: { m: BusMessage; name: (id: string) => string }) {
     >
       <button
         onClick={() => !mine && jump(m.from)}
-        className="no-drag mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-black/75"
-        style={{ background: color }}
+        className={cx(
+          'no-drag mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold',
+          mine ? 'bg-violet-500 text-on-accent' : 'text-[rgba(0,0,0,0.75)]',
+        )}
+        style={mine ? undefined : { background: color }}
         title={name(m.from)}
       >
         {name(m.from).slice(0, 1).toUpperCase()}

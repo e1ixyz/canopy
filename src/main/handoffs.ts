@@ -84,7 +84,14 @@ export class HandoffShelf {
 
   /** Unused first (newest first), then used ones */
   list(projectPath?: string): HandoffMeta[] {
-    const dirs = projectPath ? [projectDir(this.root, projectPath)] : existsSync(this.root) ? readdirSync(this.root).map((d) => join(this.root, d)) : []
+    // Only folders: Finder drops .DS_Store into the shelf root, and reading a file as a folder throws.
+    const dirs = projectPath
+      ? [projectDir(this.root, projectPath)]
+      : existsSync(this.root)
+        ? readdirSync(this.root, { withFileTypes: true })
+            .filter((d) => d.isDirectory())
+            .map((d) => join(this.root, d.name))
+        : []
     const out: HandoffMeta[] = []
     for (const d of dirs) {
       if (!existsSync(d)) continue
@@ -92,7 +99,10 @@ export class HandoffShelf {
         if (!f.endsWith('.md')) continue
         const file = join(d, f)
         try {
-          out.push(parse(file, readFileSync(file, 'utf8')).meta)
+          const meta = parse(file, readFileSync(file, 'utf8')).meta
+          // Shelves are keyed by folder name, so ~/a/api and ~/b/api share one; keep only this project's.
+          if (projectPath && meta.project && meta.project !== projectPath) continue
+          out.push(meta)
         } catch {
           /* unreadable file */
         }

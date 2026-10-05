@@ -26,6 +26,10 @@ export async function runSkill(name: string, sessionId?: string) {
 
 /** psql on the checkout's DATABASE_URL (or the adapter's db settings), in its own tile */
 export async function openDb(cwd: string, projectPath: string) {
+  return openDbNow(cwd, projectPath).catch((e) => useApp.getState().toast((e as Error).message, 'error'))
+}
+
+async function openDbNow(cwd: string, projectPath: string) {
   const st = useApp.getState()
   const adapter = await orch.invoke('adapter:get', projectPath).catch(() => null)
   const varName = adapter?.db?.varName ?? 'DATABASE_URL'
@@ -37,6 +41,10 @@ export async function openDb(cwd: string, projectPath: string) {
 
 /** Railway logs and variables for this checkout; asks for the project once */
 export async function openDeploy(cwd: string, projectPath: string) {
+  return openDeployNow(cwd, projectPath).catch((e) => useApp.getState().toast((e as Error).message, 'error'))
+}
+
+async function openDeployNow(cwd: string, projectPath: string) {
   const st = useApp.getState()
   const hint = await orch.invoke('deploy:suggest', cwd, projectPath)
   if (!hint.saved) return st.set({ deploySetup: { cwd, projectPath } })

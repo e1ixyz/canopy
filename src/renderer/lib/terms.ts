@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { orch } from './orch'
+import { termPalette } from './theme'
 import { shellQuote } from './util'
 
 /**
@@ -38,28 +39,41 @@ export function setLinkHandler(fn: typeof linkHandler) {
   linkHandler = fn
 }
 
-const theme = {
-  background: '#00000000',
-  foreground: '#e6e6f0',
-  cursor: '#c4b5fd',
-  cursorAccent: '#0b0b12',
-  selectionBackground: 'rgba(167, 139, 250, 0.32)',
-  black: '#1b1b26',
-  red: '#ff6b8a',
-  green: '#5af0a6',
-  yellow: '#ffd166',
-  blue: '#7aa2ff',
-  magenta: '#c792ea',
-  cyan: '#5ce1e6',
-  white: '#d8d8e6',
-  brightBlack: '#5c5c78',
-  brightRed: '#ff8fa6',
-  brightGreen: '#84ffc2',
-  brightYellow: '#ffe08a',
-  brightBlue: '#a3bdff',
-  brightMagenta: '#ddb3ff',
-  brightCyan: '#8ff0f3',
-  brightWhite: '#ffffff',
+let palette = termPalette('dark')
+
+/**
+ * Load the palette's face first: xterm measures its cell size once, when the font options change,
+ * so measuring a bundled face that hasn't loaded yet locks in the fallback's width.
+ */
+function fontReady(p: ReturnType<typeof termPalette>) {
+  const face = p.font.split(',')[0].trim()
+  return Promise.all([document.fonts.load(`${p.size}px ${face}`), document.fonts.load(`bold ${p.size}px ${face}`)]).catch(() => [])
+}
+
+/** Re-measure after a late font load: re-setting the same family wouldn't trigger it, so nudge it */
+function remeasure(id: string, e: TermEntry) {
+  const family = e.term.options.fontFamily ?? palette.font
+  e.term.options.fontFamily = `${family}, monospace`
+  e.term.options.fontFamily = family
+  e.webgl?.clearTextureAtlas()
+  requestAnimationFrame(() => fitTerm(id))
+}
+
+/** Restyle every live terminal for a theme change */
+export function setTermPalette(p: ReturnType<typeof termPalette>) {
+  palette = p
+  fontReady(p).then(() => {
+    if (palette !== p) return
+    for (const [id, e] of entries) {
+      e.term.options.theme = p.theme
+      e.term.options.fontFamily = p.font
+      e.term.options.fontSize = p.size
+      e.term.options.lineHeight = p.lineHeight
+      e.term.options.minimumContrastRatio = p.minimumContrastRatio
+      e.webgl?.clearTextureAtlas()
+      requestAnimationFrame(() => fitTerm(id))
+    }
+  })
 }
 
 export function getTerm(sessionId: string): TermEntry {
@@ -68,16 +82,17 @@ export function getTerm(sessionId: string): TermEntry {
   const term = new Terminal({
     allowProposedApi: true,
     allowTransparency: true,
-    fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
-    fontSize: 12.5,
-    lineHeight: 1.18,
+    fontFamily: palette.font,
+    fontSize: palette.size,
+    lineHeight: palette.lineHeight,
+    minimumContrastRatio: palette.minimumContrastRatio,
     letterSpacing: 0,
     cursorBlink: true,
     cursorStyle: 'bar',
     scrollback: 20000,
     macOptionIsMeta: false,
     macOptionClickForcesSelection: true,
-    theme,
+    theme: palette.theme,
   })
   const fit = new FitAddon()
   const search = new SearchAddon()
@@ -151,6 +166,10 @@ export function attach(sessionId: string, host: HTMLElement) {
   if (!e.opened) {
     e.term.open(e.el)
     e.opened = true
+    // A terminal opened before its theme's face finished loading was measured with the fallback.
+    const opened = e
+    const p = palette
+    if (!document.fonts.check(`${p.size}px ${p.font.split(',')[0].trim()}`)) fontReady(p).then(() => palette === p && remeasure(sessionId, opened))
     if (webglCount < WEBGL_MAX) {
       try {
         const gl = new WebglAddon()

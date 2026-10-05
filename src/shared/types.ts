@@ -268,6 +268,8 @@ export interface BusMessage {
   ts: number
   readBy: string[]
   wake?: boolean
+  /** For `to: 'project'` from the GUI, which has no project of its own */
+  projectId?: string
 }
 
 export interface Claim {
@@ -308,9 +310,23 @@ export interface Adapter {
   prompts?: PromptOverrides
   db?: { envFile?: string; varName?: string; drift?: string }
   railway?: { project: string; service: string; environments?: string[] }
+  /** Prefix for worktree branches the app names itself (default: the repo's usual prefix, else orch/) */
+  branchPrefix?: string
 }
 
+export interface BranchSuggestion {
+  branch: string
+  /** where the slug came from: the model, or the prompt's first words */
+  source: 'claude' | 'prompt'
+}
+
+export type Appearance = 'system' | 'light' | 'dark'
+
 export interface Settings {
+  /** Light or dark; 'system' follows macOS */
+  appearance?: Appearance
+  /** New worktrees without a branch name are named from the first prompt */
+  nameWorktrees?: boolean
   claimMode: 'warn' | 'deny' | 'off'
   autoWake: boolean
   defaultPermissionMode: PermissionMode
@@ -374,6 +390,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultModel: '',
   reduceMotion: false,
   notifications: true,
+  appearance: 'system',
+  nameWorktrees: true,
 }
 
 export const PROJECT_COLORS = [

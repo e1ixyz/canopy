@@ -65,8 +65,8 @@ export function buildBrief(s: Session, siblings: Session[], ports: PortPair | nu
     .filter((o) => o.id !== s.id && o.kind === 'claude')
     .map((o) => `  - ${o.name} [${o.id}] ${o.role !== 'plain' ? `(${o.role}) ` : ''}on ${o.branch ?? '?'} at ${o.cwd}`)
   return [
-    '# Orchestrator',
-    `You are running inside Orchestrator, a harness that runs several Claude Code sessions side by side. Your session is "${s.name}" (id ${s.id}), working in ${s.cwd}${s.branch ? ` on branch ${s.branch}` : ''}.`,
+    '# Canopy',
+    `You are running inside Canopy, a harness that runs several Claude Code sessions side by side. Your session is "${s.name}" (id ${s.id}), working in ${s.cwd}${s.branch ? ` on branch ${s.branch}` : ''}.`,
     ports ? `This worktree's reserved ports: web ${ports.web}, api ${ports.api} (PORT and WEB_PORT are set in your environment). Start dev servers on these, never on another worktree's ports.` : '',
     others.length ? `Other sessions right now:\n${others.join('\n')}` : 'No other sessions are running yet.',
     'Use the `orchestrator` MCP tools to coordinate: list_sessions, send_message, broadcast, read_inbox, claim / release / who_owns (advisory file locks shared across every worktree of the repo), set_status (shown on your tile), get_ports, open_preview, spawn_session, handoff.',

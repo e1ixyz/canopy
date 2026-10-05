@@ -20,12 +20,12 @@ export function TopBar() {
   }
 
   return (
-    <div className="drag relative z-30 flex h-12 shrink-0 items-center gap-2 pr-3 pl-[86px]">
+    <div className="orch-topbar drag relative z-30 flex h-12 shrink-0 items-center gap-2 pr-3 pl-[86px]">
       <IconButton title="Projects (⌘O)" onClick={() => set({ view: 'launcher' })} active={view === 'launcher'}>
         <Home size={15} />
       </IconButton>
       <div className="mx-1 h-5 w-px bg-white/10" />
-      <div className="no-drag flex min-w-0 items-center gap-1 overflow-x-auto scroll-thin">
+      <div role="tablist" aria-label="Pages" className="no-drag flex min-w-0 items-center gap-1 overflow-x-auto scroll-thin">
         <AnimatePresence initial={false}>
           {pages.map((p) => (
             <PageTab key={p.id} page={p} active={p.id === activePageId && view === 'workspace'} onClick={() => setActivePage(p.id)} />
@@ -99,6 +99,17 @@ function PageTab({ page, active, onClick }: { page: Page; active: boolean; onCli
       transition={spring.bouncy}
       onClick={onClick}
       onDoubleClick={() => setEditing(true)}
+      role="tab"
+      aria-selected={active}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        } else if (e.key === 'F2') setEditing(true)
+      }}
+      data-active={active}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('application/x-orch-tile')) return
         e.preventDefault()
@@ -111,7 +122,7 @@ function PageTab({ page, active, onClick }: { page: Page; active: boolean; onCli
         if (id) moveTile(id, page.id)
       }}
       className={cx(
-        'group relative flex h-8 shrink-0 cursor-default items-center gap-2 overflow-hidden rounded-xl px-3 text-[12.5px] font-medium whitespace-nowrap',
+        'orch-tab group relative flex h-8 shrink-0 cursor-default items-center gap-2 overflow-hidden rounded-xl px-3 text-[12.5px] font-medium whitespace-nowrap',
         active ? 'text-white' : 'text-white/50 hover:text-white/85',
         over && 'ring-2 ring-violet-400/60',
       )}
@@ -120,12 +131,12 @@ function PageTab({ page, active, onClick }: { page: Page; active: boolean; onCli
         <motion.span
           layoutId="active-page"
           transition={spring.snappy}
-          className="absolute inset-0 rounded-xl border border-white/10 bg-white/[0.08] shadow-[0_8px_24px_-12px_rgba(167,139,250,0.6)]"
+          className="orch-tab-active absolute inset-0 rounded-xl border border-white/10 bg-white/[0.08]"
         />
       )}
       <span className="relative flex -space-x-1">
-        {(colors.length ? colors : ['rgba(255,255,255,0.25)']).slice(0, 4).map((c) => (
-          <span key={c} className="h-2 w-2 rounded-full ring-2 ring-[#0b0b12]" style={{ background: c }} />
+        {(colors.length ? colors : ['var(--hairline-strong)']).slice(0, 4).map((c) => (
+          <span key={c} className="h-2 w-2 rounded-full ring-2 ring-[var(--app-bg)]" style={{ background: c }} />
         ))}
       </span>
       {editing ? (
@@ -160,15 +171,17 @@ function PageTab({ page, active, onClick }: { page: Page; active: boolean; onCli
           </motion.span>
         )}
       </AnimatePresence>
-      <span
+      <button
+        type="button"
+        aria-label={`Close page ${page.name}`}
         onClick={(e) => {
           e.stopPropagation()
           if (!page.tiles.length || confirm(`Close "${page.name}" and stop its ${page.tiles.length} session(s)?`)) removePage(page.id)
         }}
-        className="relative -mr-1 hidden rounded p-0.5 text-white/40 hover:bg-white/10 hover:text-white group-hover:block"
+        className="relative -mr-1 hidden rounded p-0.5 text-white/40 group-focus-within:block group-hover:block hover:bg-white/10 hover:text-white"
       >
         <X size={11} />
-      </span>
+      </button>
     </motion.div>
   )
 }

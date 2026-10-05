@@ -2,12 +2,21 @@ import type { Claim, Session, ShipFile } from '@shared/types'
 import { matchesClaim } from './bus/glob'
 import { shTry } from './env'
 
-/** Paths from `git status --porcelain` (renames resolve to the new path) */
+/**
+ * Paths from `git status --porcelain -z` (renames resolve to the new path). -z keeps paths raw:
+ * without it git C-quotes non-ASCII names ("caf\303\251.txt"), which then match nothing.
+ */
 export function parsePorcelain(out: string): string[] {
-  return out
-    .split('\n')
-    .filter((l) => l.length > 3)
-    .map((l) => l.slice(3).replace(/^.* -> /, '').replace(/^"|"$/g, ''))
+  const parts = out.split('\0')
+  const files: string[] = []
+  for (let i = 0; i < parts.length; i++) {
+    const entry = parts[i]
+    if (entry.length < 4) continue
+    files.push(entry.slice(3))
+    // A rename or copy is followed by its original path as the next field.
+    if (/[RC]/.test(entry.slice(0, 2))) i++
+  }
+  return files
 }
 
 /**
@@ -28,7 +37,7 @@ export function classify(files: string[], me: Session, others: Session[], claims
 }
 
 export async function changedFiles(cwd: string): Promise<{ files: string[]; branch?: string; upstream?: string }> {
-  const status = (await shTry('git', ['status', '--porcelain', '--untracked-files=all'], cwd, 10_000)) ?? ''
+  const status = (await shTry('git', ['status', '--porcelain', '-z', '--untracked-files=all'], cwd, 10_000)) ?? ''
   const files = new Set(parsePorcelain(status))
   const upstream = (await shTry('git', ['rev-parse', '--abbrev-ref', '@{u}'], cwd, 5000))?.trim()
   if (upstream) for (const f of ((await shTry('git', ['diff', '--name-only', `${upstream}...HEAD`], cwd, 10_000)) ?? '').split('\n')) if (f) files.add(f)

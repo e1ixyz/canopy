@@ -38,6 +38,13 @@ describe('inbox', () => {
     bus.markRead('b')
     expect(bus.unread('b')).toHaveLength(0)
   })
+  it('delivers a project broadcast from the GUI to that project only', () => {
+    const { bus } = setup()
+    bus.post('broadcast', 'user', 'project', 'from the drawer', true, 'p')
+    expect(bus.unread('a')).toHaveLength(1)
+    expect(bus.unread('b')).toHaveLength(1)
+    expect(bus.unread('c')).toHaveLength(0)
+  })
   it('does not deliver claim notices as inbox items', () => {
     const { bus, sessions } = setup()
     bus.claim(sessions[0], ['src/**'], 'refactor')

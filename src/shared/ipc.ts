@@ -1,6 +1,7 @@
 import type { PromptKey } from './prompts'
 import type {
   Adapter,
+  BranchSuggestion,
   AdapterAction,
   HandoffMeta,
   DbInfo,
@@ -42,6 +43,7 @@ export interface InvokeMap {
   'adapter:get': (projectPath: string) => Adapter | null
   'worktree:list': (projectPath: string) => Worktree[]
   'worktree:create': (req: NewWorktreeRequest) => Worktree
+  'worktree:suggestName': (projectPath: string, task: string) => BranchSuggestion
   'worktree:remove': (path: string, force: boolean) => { ok: boolean; reason?: string }
   'git:status': (cwd: string) => GitStatus | null
   'git:branches': (projectPath: string) => string[]
@@ -58,7 +60,7 @@ export interface InvokeMap {
   'preview:emulate': (webContentsId: number, scheme: 'dark' | 'light' | null) => void
   'shell:run': (cwd: string, projectPath: string, command: string, name?: string) => Session
   'pages:save': (pages: Page[], activePageId: string | null) => void
-  'bus:send': (msg: { to: string; body: string; wake?: boolean; from?: string }) => BusMessage
+  'bus:send': (msg: { to: string; body: string; wake?: boolean; from?: string; projectId?: string }) => BusMessage
   'bus:clear': () => void
   'claims:release': (id: string) => void
   'settings:set': (patch: Partial<Settings>) => Settings

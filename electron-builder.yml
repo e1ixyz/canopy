@@ -1,5 +1,5 @@
 appId: dev.orchestrator.app
-productName: Orchestrator
+productName: Canopy
 directories:
   output: dist
 files:

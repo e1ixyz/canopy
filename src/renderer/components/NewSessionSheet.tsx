@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { AlertTriangle, Archive, FolderOpen, GitBranch, GitFork, History, Loader2, Sparkles, TerminalSquare } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import type { Adapter, PermissionMode, Role, TranscriptSummary, Worktree } from '@shared/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Adapter, BranchSuggestion, PermissionMode, Role, TranscriptSummary, Worktree } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
 import { cx, tildify, timeAgo } from '../lib/util'
@@ -45,27 +45,66 @@ function SheetBody() {
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  // Item 21: an empty branch field is named from the first prompt
+  const autoName = settings.nameWorktrees !== false && kind === 'claude'
+  const [suggestion, setSuggestion] = useState<(BranchSuggestion & { task: string; project: string }) | null>(null)
+  const [naming, setNaming] = useState(false)
+  const nameReq = useRef(0)
+  const fresh = (task: string) => !!suggestion && suggestion.task === task && suggestion.project === projectPath
+  const nameFor = async (task: string) => {
+    const id = ++nameReq.current
+    setNaming(true)
+    try {
+      const s = await orch.invoke('worktree:suggestName', projectPath, task)
+      if (id === nameReq.current) setSuggestion({ ...s, task, project: projectPath })
+      return s
+    } finally {
+      if (id === nameReq.current) setNaming(false)
+    }
+  }
 
+  const [listed, setListed] = useState(false)
   useEffect(() => {
     if (!projectPath) return
+    let live = true
+    setListed(false)
     orch.invoke('worktree:list', projectPath).then((w) => {
+      if (!live) return
+      setListed(true)
       setWorktrees(w)
       if (w.length && !w.some((x) => x.path === cwd)) setCwd(w[0].path)
       if (!w.length) setCwd(projectPath)
     })
     orch.invoke('git:branches', projectPath).then((b) => {
+      if (!live) return
       setBases(b)
       setBase((cur) => cur || ['origin/develop', 'origin/main', 'origin/master', 'main', 'master'].find((x) => b.includes(x)) || b[0] || 'HEAD')
     })
-    orch.invoke('adapter:get', projectPath).then(setAdapter)
-    orch.invoke('transcripts:list', projectPath).then(setTranscripts)
+    orch.invoke('adapter:get', projectPath).then((a) => live && setAdapter(a))
+    orch.invoke('transcripts:list', projectPath).then((t) => live && setTranscripts(t))
+    return () => {
+      live = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectPath])
+
+  // Suggest while the prompt is typed, so Start rarely waits on the model
+  useEffect(() => {
+    const task = prompt.trim()
+    if (mode !== 'worktree' || !autoName || branch.trim() || task.length < 12 || fresh(task)) return
+    const t = setTimeout(() => nameFor(task).catch(() => {}), 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt, mode, autoName, branch, projectPath])
 
   const live = Object.values(sessions).filter((s) => s.kind === 'claude' && s.status !== 'exited')
   const inUse = (p: string) => live.filter((s) => s.cwd === p)
   const conflict = kind === 'claude' && mode === 'checkout' && role !== 'reviewer' ? inUse(cwd) : []
   const isGit = worktrees.length > 0
+  // Fall back to a tab that is actually offered: no worktree tab outside git, no resume or pick-up for shells.
+  useEffect(() => {
+    if ((mode === 'worktree' && listed && !isGit) || (kind === 'shell' && (mode === 'resume' || mode === 'pickup'))) setMode('checkout')
+  }, [mode, kind, isGit, listed])
 
   const projectOptions = useMemo(() => {
     const list = [...projects].sort((a, b) => b.lastOpened - a.lastOpened)
@@ -74,13 +113,21 @@ function SheetBody() {
   }, [projects, projectPath])
 
   const start = async (override?: Partial<{ role: Role; perm: PermissionMode }>) => {
-    if (!projectPath) return
+    if (!projectPath || busy) return
+    // ⌘↵ must respect the same guard as the disabled Start button; the conflict buttons pass an override.
+    if (!override && conflict.length > 0 && mode === 'checkout') return
     let target = cwd
     try {
       if (mode === 'worktree') {
-        if (!branch.trim()) return toast('Name the new branch first', 'warn')
+        let newBranch = branch.trim()
+        if (!newBranch) {
+          const task = prompt.trim()
+          if (!autoName || !task) return toast(autoName ? 'Name the branch, or write a first prompt to name it from' : 'Name the new branch first', 'warn')
+          setBusy('Naming the worktree…')
+          newBranch = fresh(task) && suggestion ? suggestion.branch : (await nameFor(task)).branch
+        }
         setBusy(adapter?.worktree?.create ? `Running ${adapter.name ?? 'project'} worktree script…` : 'Creating worktree…')
-        const wt = await orch.invoke('worktree:create', { projectPath, branch: branch.trim(), base })
+        const wt = await orch.invoke('worktree:create', { projectPath, branch: newBranch, base })
         target = wt.path
         toast(`Worktree ${wt.branch}${wt.ports ? ` on :${wt.ports.web} / :${wt.ports.api}` : ''}`, 'ok')
       }
@@ -224,8 +271,38 @@ function SheetBody() {
             {mode === 'worktree' && (
               <div className="space-y-3">
                 <div className="grid grid-cols-[1fr_200px] gap-3">
-                  <Field label="New branch">
-                    <input autoFocus value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="feat/checkout-flow" className={inputCls} />
+                  <Field
+                    label="New branch"
+                    hint={
+                      autoName && !branch.trim() ? (
+                        <span className="flex items-center gap-1 normal-case tracking-normal text-white/35">
+                          {naming ? (
+                            <>
+                              <Loader2 size={10} className="animate-spin" /> naming…
+                            </>
+                          ) : fresh(prompt.trim()) ? (
+                            'from your prompt · click to edit'
+                          ) : (
+                            'optional'
+                          )}
+                        </span>
+                      ) : undefined
+                    }
+                  >
+                    <input
+                      autoFocus={!autoName}
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      onFocus={(e) => {
+                        // Focusing the empty field takes the suggestion, selected, so typing replaces it
+                        if (branch || !suggestion || !fresh(prompt.trim())) return
+                        const el = e.currentTarget
+                        setBranch(suggestion.branch)
+                        requestAnimationFrame(() => el.select())
+                      }}
+                      placeholder={autoName ? (suggestion && fresh(prompt.trim()) ? suggestion.branch : 'Named from the first prompt') : 'feat/checkout-flow'}
+                      className={inputCls}
+                    />
                   </Field>
                   <Field label="Off">
                     <select value={base} onChange={(e) => setBase(e.target.value)} className={inputCls}>
@@ -295,7 +372,7 @@ function SheetBody() {
                   <Button tone="soft" size="sm" onClick={() => start({ role: 'reviewer', perm: 'plan' })}>
                     Open as read-only reviewer
                   </Button>
-                  <Button tone="ghost" size="sm" onClick={() => start()}>
+                  <Button tone="ghost" size="sm" onClick={() => start({})}>
                     Start anyway
                   </Button>
                 </div>
@@ -334,6 +411,7 @@ function SheetBody() {
             </div>
             <Field label="First prompt" hint={<span className="normal-case tracking-normal text-white/30">optional</span>}>
               <textarea
+                autoFocus={mode === 'worktree' && autoName}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={3}
@@ -357,7 +435,7 @@ function SheetBody() {
         <Button onClick={() => set({ newSession: null })}>Cancel</Button>
         {mode !== 'resume' && mode !== 'pickup' && (
           <Button tone="primary" disabled={!!busy || (conflict.length > 0 && mode === 'checkout')} onClick={() => start()}>
-            {mode === 'worktree' ? 'Create worktree & start' : 'Start session'} <kbd className="!bg-white/15 !text-white/80">⌘↵</kbd>
+            {mode === 'worktree' ? 'Create worktree & start' : 'Start session'} <kbd>⌘↵</kbd>
           </Button>
         )}
       </div>

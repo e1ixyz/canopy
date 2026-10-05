@@ -3,7 +3,6 @@ import { Archive, BookOpen, FolderOpen, GitBranch, LayoutGrid, Pin, PinOff, Sear
 import { useEffect, useMemo, useState } from 'react'
 import type { HostEntry } from '@shared/types'
 import { orch } from '../lib/orch'
-import { spring } from '../lib/motion'
 import { cx, fuzzy, hashColor, tildify, timeAgo } from '../lib/util'
 import { openHost } from '../lib/tiles'
 import { useApp } from '../store/app'
@@ -58,52 +57,47 @@ export function Launcher() {
   return (
     <motion.div
       key="launcher"
-      className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-[#07070c]/70 backdrop-blur-xl"
-      initial={{ opacity: 0, scale: 1.03, filter: 'blur(10px)' }}
-      animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, scale: 0.97, filter: 'blur(10px)' }}
-      transition={spring.gentle}
+      className="orch-screen absolute inset-0 z-20 overflow-y-auto scroll-thin bg-[color-mix(in_oklab,var(--app-bg)_88%,transparent)] backdrop-blur-xl"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
     >
       <div className="drag h-12" />
-      <div className="mx-auto max-w-6xl px-10 pb-24">
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ ...spring.gentle, delay: 0.05 }} className="mt-10 mb-10">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11.5px] text-white/60">
-            <Sparkles size={12} className="text-violet-300" /> Claude Code, many at once
+      <div className="mx-auto max-w-5xl px-10 pb-24">
+        <div className="mt-2 mb-6 flex items-end justify-between gap-6">
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-tight text-white">Projects</h1>
+            <p className="mt-1 text-[13px] text-white/50">
+              Each session runs <code className="font-mono text-[12px] text-white/70">claude</code> in its own worktree and ports, and the sessions share a message bus.
+            </p>
           </div>
-          <h1 className="text-[56px] leading-[1.02] font-semibold tracking-[-0.035em]">
-            <span className="bg-gradient-to-br from-white via-white to-violet-300/80 bg-clip-text text-transparent">Pick a project.</span>
-            <br />
-            <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-sky-300 bg-clip-text text-transparent">Run the whole team.</span>
-          </h1>
-          <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/50">
-            Every session is the real <code className="rounded bg-white/5 px-1 font-mono text-[13px] text-white/70">claude</code> CLI, in its own worktree, on its own ports, talking to the others over a shared bus.
-          </p>
           <button
             onClick={() => set({ helpOpen: true })}
-            className="no-drag mt-5 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[12.5px] text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+            className="no-drag inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
           >
-            <BookOpen size={13} /> New here? Read the guide <kbd>⌘/</kbd>
+            <BookOpen size={13} /> Guide <kbd>⌘/</kbd>
           </button>
-        </motion.div>
+        </div>
 
-        <div className="mb-8 flex items-center gap-3">
+        <div className="mb-8 flex items-center gap-2">
           <div className="relative flex-1">
-            <Search size={16} className="absolute top-1/2 left-4 -translate-y-1/2 text-white/35" />
+            <Search size={15} className="absolute top-1/2 left-3.5 -translate-y-1/2 text-white/35" />
             <input
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && cards[0] && openProject(cards[0].path)}
               placeholder="Search recent projects…"
-              className="no-drag h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.04] pr-4 pl-11 text-[14px] text-white placeholder-white/30 outline-none transition focus:border-violet-400/40 focus:bg-white/[0.06] focus:ring-4 focus:ring-violet-500/10"
+              className="no-drag h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] pr-4 pl-10 text-[13.5px] text-white placeholder-white/35 outline-none transition-colors focus:border-violet-400/50"
             />
           </div>
-          <Button tone="soft" onClick={pick} className="h-12 rounded-2xl px-5">
-            <FolderOpen size={16} /> Open folder…
+          <Button tone="soft" onClick={pick} className="h-10 rounded-xl px-4">
+            <FolderOpen size={15} /> Open folder…
           </Button>
           {pages.length > 0 && (
-            <Button tone="primary" onClick={() => set({ view: 'workspace' })} className="h-12 rounded-2xl px-5">
-              <LayoutGrid size={16} /> Back to workspace
+            <Button tone="primary" onClick={() => set({ view: 'workspace' })} className="h-10 rounded-xl px-4">
+              <LayoutGrid size={15} /> Back to workspace
             </Button>
           )}
         </div>
@@ -122,23 +116,17 @@ function Hosts({ hosts }: { hosts: HostEntry[] }) {
   const { set } = useApp()
   return (
     <div className="mb-10">
-      <div className="mb-3 flex items-center gap-3 text-[11px] font-semibold tracking-[0.14em] text-white/35 uppercase">
+      <div className="mb-2.5 flex items-center gap-2 text-[12.5px] font-medium text-white/50">
         Hosts
-        <button onClick={() => set({ settingsOpen: true })} className="no-drag rounded-md px-1.5 py-0.5 text-[10.5px] tracking-normal text-white/35 normal-case hover:bg-white/[0.06] hover:text-white/70">
+        <button onClick={() => set({ settingsOpen: true })} className="no-drag rounded-md px-1.5 py-0.5 text-[12px] text-white/40 hover:bg-white/[0.06] hover:text-white/70">
           {hosts.length ? 'Add or edit…' : 'Add a host…'}
         </button>
       </div>
       {hosts.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
-          {hosts.map((h, i) => (
-            <motion.div
-              key={h.name}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring.bouncy, delay: Math.min(i * 0.03, 0.3) }}
-              className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3"
-            >
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-2.5">
+          {hosts.map((h) => (
+            <div key={h.name} className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-[var(--tile-bg)] px-3.5 py-3">
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.06] text-white/60">
                 <Server size={15} />
               </div>
               <div className="min-w-0 flex-1">
@@ -151,7 +139,7 @@ function Hosts({ hosts }: { hosts: HostEntry[] }) {
               <IconButton title="Run Claude on the host" onClick={() => openHost(h, true)}>
                 <Sparkles size={14} />
               </IconButton>
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
@@ -163,8 +151,8 @@ function Section({ title, cards, offset }: { title: string; cards: Card[]; offse
   if (!cards.length) return null
   return (
     <div className="mb-10">
-      <div className="mb-3 text-[11px] font-semibold tracking-[0.14em] text-white/35 uppercase">{title}</div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
+      <div className="mb-2.5 text-[12.5px] font-medium text-white/50">{title}</div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-2.5">
         {cards.map((c, i) => (
           <ProjectCard key={c.path} card={c} index={offset + i} />
         ))}
@@ -184,42 +172,45 @@ function ProjectCard({ card, index }: { card: Card; index: number }) {
     set({ projects: [...projects.filter((x) => x.id !== p.id), { ...p, pinned: !card.pinned }] })
   }
   return (
-    <motion.button
-      layoutId={`project-${card.path}`}
-      initial={{ opacity: 0, y: 18, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ ...spring.bouncy, delay: Math.min(index * 0.025, 0.5) }}
-      whileHover={{ y: -4, scale: 1.015 }}
-      whileTap={{ scale: 0.97 }}
+    // A div acting as the button: the pin and handoff controls inside it are real buttons, which can't nest in one.
+    <motion.div
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
+        e.preventDefault()
+        openProject(card.path)
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15, delay: Math.min(index * 0.015, 0.2) }}
       onClick={() => openProject(card.path)}
-      className="group no-drag relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.035] p-4 text-left shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] transition-colors hover:border-white/[0.14] hover:bg-white/[0.06]"
+      className="group no-drag cursor-default rounded-xl border border-white/[0.08] bg-[var(--tile-bg)] p-3.5 text-left transition-colors hover:border-white/[0.18] focus-visible:border-violet-400/60 focus-visible:outline-none"
     >
-      <div
-        className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-40"
-        style={{ background: card.color }}
-      />
-      <div className="relative flex items-start gap-3">
-        <div
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[15px] font-bold text-black/80 shadow-lg"
-          style={{ background: `linear-gradient(135deg, ${card.color}, color-mix(in oklab, ${card.color} 55%, white))` }}
-        >
+      <div className="flex items-start gap-3">
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[13px] font-semibold text-[rgba(0,0,0,0.75)]" style={{ background: card.color }}>
           {card.name.slice(0, 1).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[14.5px] font-semibold text-white/95">{card.name}</div>
+          <div className="truncate text-[14px] font-medium text-white">{card.name}</div>
           <div className="truncate font-mono text-[11px] text-white/35">{tildify(card.path, orch.homedir)}</div>
         </div>
-        <span
+        <button
+          type="button"
           onClick={togglePin}
-          className={cx('rounded-lg p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white', card.pinned ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}
+          aria-label={card.pinned ? `Unpin ${card.name}` : `Pin ${card.name}`}
+          className={cx(
+            'rounded-lg p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white focus-visible:opacity-100',
+            card.pinned ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+          )}
         >
           {card.pinned ? <PinOff size={13} /> : <Pin size={13} />}
-        </span>
+        </button>
       </div>
-      <div className="relative mt-4 flex items-center gap-2 text-[11.5px] text-white/45">
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] whitespace-nowrap text-white/45">
         {card.live > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-2 py-0.5 text-emerald-300">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> {card.live} live
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> {card.live} live
           </span>
         )}
         {card.isGit && (
@@ -229,7 +220,8 @@ function ProjectCard({ card, index }: { card: Card; index: number }) {
         )}
         {card.prompts ? <span>{card.prompts} prompts</span> : null}
         {saved > 0 && (
-          <span
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
               set({ newSession: { projectPath: card.path, mode: 'pickup' } })
@@ -238,10 +230,10 @@ function ProjectCard({ card, index }: { card: Card; index: number }) {
             className="inline-flex items-center gap-1 rounded-full bg-violet-400/12 px-2 py-0.5 text-violet-200 transition hover:bg-violet-400/25"
           >
             <Archive size={11} /> {saved} handoff{saved === 1 ? '' : 's'}
-          </span>
+          </button>
         )}
         <span className="ml-auto">{timeAgo(card.lastUsed)}</span>
       </div>
-    </motion.button>
+    </motion.div>
   )
 }

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, relative } from 'node:path'
 import * as pty from 'node-pty'
+import { nativeTheme } from 'electron'
 import type { EventMap } from '@shared/ipc'
 import {
   PROJECT_COLORS,
@@ -30,6 +31,8 @@ import { buildBrief, writeSessionFiles, type HookEvent } from './hooks/inject'
 import { readEnvFile } from './dotenv'
 import { orchHome } from './paths'
 import { PortWatcher } from './port-watcher'
+import { suggestBranch } from './naming'
+import { LIMIT, plainText, TRUST } from './termtext'
 import { contextInfo, lastAssistantText, projectSlug } from './recents'
 import { changedFiles, classify } from './ship'
 import { getState, saveState, sessionDir } from './store'
@@ -76,8 +79,6 @@ export type HandoffMode = 'fresh' | 'save' | 'saveClose'
 
 const BUFFER_CAP = 2_000_000
 const NAMES = 'atlas birch cedar delta ember fern gale harbor iris juno kite lumen moss nova onyx pine quill reef sage tide umber vale willow yarrow zephyr'.split(' ')
-const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]/g
-const LIMIT = /usage limit|rate limit|limit reached|out of (extra )?usage|5-hour limit/i
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/
 const LOCAL_URL = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d{2,5})(?:\/[^\s'"`<>)\]]*)?/
 
@@ -94,6 +95,7 @@ export class Hub {
   baseUrl = ''
   serverPort = 0
   private pendingSpawns = new Map<string, (ok: boolean) => void>()
+  private starting = new Map<string, Promise<void>>()
   onAttention: (s: Session, text: string) => void = () => {}
   browser = new BrowserBridge()
   shelf = new HandoffShelf(orchHome('handoffs'))
@@ -258,7 +260,18 @@ export class Hub {
     return { ...this.sessions.get(id)! }
   }
 
+  /** Starts queue per session: two overlapping starts (restore + a Restart click) would otherwise both spawn a process */
   async start(id: string, prompt?: string) {
+    const run = (this.starting.get(id) ?? Promise.resolve()).catch(() => {}).then(() => this.startNow(id, prompt))
+    this.starting.set(id, run)
+    try {
+      await run
+    } finally {
+      if (this.starting.get(id) === run) this.starting.delete(id)
+    }
+  }
+
+  private async startNow(id: string, prompt?: string) {
     const s = this.sessions.get(id)
     if (!s) return
     const old = this.procs.get(id)
@@ -292,7 +305,9 @@ export class Hub {
     Object.assign(env, {
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
-      TERM_PROGRAM: 'Orchestrator',
+      TERM_PROGRAM: 'Canopy',
+      // Tells programs (Claude Code's auto theme among them) whether the terminal is light or dark
+      COLORFGBG: lightTerminal() ? '0;15' : '15;0',
       ORCH_SESSION_ID: id,
       ORCH_SESSION_NAME: s.name,
       ORCH_URL: this.baseUrl,
@@ -348,6 +363,7 @@ export class Hub {
       this.flushNow(id, proc)
       this.emit('pty:exit', id, exitCode)
       this.patch(id, { status: exitCode === 0 || s.kind !== 'claude' ? 'exited' : 'error', exitCode, ports: [] })
+      this.goals.onSessionGone(id)
     })
   }
 
@@ -358,8 +374,9 @@ export class Hub {
     proc.pending += d
     if (!proc.flush) proc.flush = setTimeout(() => this.flushNow(id, proc), 8)
     const s = this.sessions.get(id)
-    if (s?.kind === 'claude' && LIMIT.test(d) && Date.now() - (proc.limitAt ?? 0) > 120_000) {
-      const line = d.replace(ANSI, '').split(/\r?\n/).find((l) => LIMIT.test(l))?.trim().slice(0, 160)
+    const text = s?.kind === 'claude' || d.includes('://') ? plainText(d) : ''
+    if (s?.kind === 'claude' && LIMIT.test(text) && Date.now() - (proc.limitAt ?? 0) > 120_000) {
+      const line = text.split(/\r?\n/).find((l) => LIMIT.test(l))?.trim().slice(0, 160)
       if (line) {
         proc.limitAt = Date.now()
         this.patch(id, { attention: line })
@@ -367,8 +384,13 @@ export class Hub {
         this.emit('ui:toast', `${s.name}: ${line}`, 'warn')
       }
     }
+    if (s?.kind === 'claude' && s.status === 'starting' && !s.attention && TRUST.test(text)) {
+      const note = 'Asks whether to trust this folder'
+      this.patch(id, { status: 'waiting', attention: note })
+      this.onAttention(s, note)
+    }
     if (s && d.includes('://')) {
-      const m = LOCAL_URL.exec(d.replace(ANSI, ''))
+      const m = LOCAL_URL.exec(text)
       if (m) {
         const url = m[0].replace('0.0.0.0', 'localhost').replace('127.0.0.1', 'localhost').replace(/[.,;:]+$/, '')
         if (url !== s.url) this.patch(id, { url })
@@ -432,6 +454,7 @@ export class Hub {
   }
 
   remove(id: string) {
+    this.goals.onSessionGone(id)
     this.kill(id)
     this.procs.delete(id)
     this.bus.release(id)
@@ -531,7 +554,7 @@ export class Hub {
 
     switch (event) {
       case 'SessionStart': {
-        this.patch(id, { status: 'idle', started: true })
+        this.patch(id, { status: 'idle', started: true, attention: undefined })
         refreshCtx(true)
         const first = proc.pendingPrompt
         if (first) {
@@ -574,7 +597,8 @@ export class Hub {
         proc.lastStopAt = Date.now()
         refreshCtx(true)
         this.maybeBadge(s, proc.wtRoot)
-        if (proc.handoffPending && (proc.autoApproveUntil ?? 0) > Date.now()) this.collectHandoff(s, proc)
+        // A busy session can take a while to get to the handoff; give it half an hour (the spawn auto-approve window is separate).
+        if (proc.handoffPending && Date.now() - (proc.handoffAt ?? 0) < 30 * 60_000) this.collectHandoff(s, proc)
         const nudge = payload.stop_hook_active ? null : this.goals.onStop(id)
         if (nudge) return { decision: 'block', reason: nudge }
         const msgs = this.bus.unread(id)
@@ -843,7 +867,8 @@ export class Hub {
     if (!ok) throw new Error('The user declined the new session')
     let cwd = req.cwd
     if (req.worktree === 'new') {
-      const branch = req.branch || `orch/${(req.name || 'task').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${randomBytes(2).toString('hex')}`
+      const branch =
+        req.branch || (await suggestBranch(req.projectPath, req.prompt || req.name || '', (await this.worktrees.adapter(req.projectPath))?.branchPrefix)).branch
       const wt = await this.worktrees.create({ projectPath: req.projectPath, branch })
       cwd = wt.path
     } else if (req.worktree && req.worktree !== 'same') cwd = req.worktree
@@ -999,4 +1024,9 @@ export class Hub {
   sessionRole(r?: string): Role {
     return (['plain', 'lead', 'worker', 'reviewer', 'qa', 'docs'] as const).includes(r as Role) ? (r as Role) : 'worker'
   }
+}
+
+/** Matches the renderer's terminal palettes */
+function lightTerminal() {
+  return !nativeTheme.shouldUseDarkColors
 }

@@ -70,8 +70,8 @@ function Body({ shot }: { shot: { sessionId: string; image: string; label: strin
     const c = canvas.current
     const ctx = c?.getContext('2d')
     if (!c || !ctx || !img.current) return
-    // Pages without a background capture as transparent; paint white under them.
-    ctx.fillStyle = '#fff'
+    // Pages without a background capture as transparent; paint what the preview showed under them.
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--webview-bg').trim() || '#fff'
     ctx.fillRect(0, 0, c.width, c.height)
     ctx.drawImage(img.current, 0, 0, c.width, c.height)
     for (const m of extra ? [...marks, extra] : marks) draw(ctx, m, scale())
@@ -127,7 +127,7 @@ function Body({ shot }: { shot: { sessionId: string; image: string; label: strin
   )
 
   return (
-    <div className="flex max-h-[88vh] flex-col">
+    <div className="flex max-h-[82vh] flex-col">
       <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3">
         <div className="mr-2 text-[14px] font-semibold tracking-tight">Mark up</div>
         {toolBtn('arrow', <ArrowUpRight size={15} />, 'Arrow')}
@@ -140,7 +140,7 @@ function Body({ shot }: { shot: { sessionId: string; image: string; label: strin
             type="button"
             title={c}
             onClick={() => setColor(c)}
-            className={cx('no-drag h-5 w-5 rounded-full ring-offset-2 ring-offset-[#12121a] transition', color === c && 'ring-2 ring-white/70')}
+            className={cx('no-drag h-5 w-5 rounded-full ring-offset-2 ring-offset-[var(--glass)] transition', color === c && 'ring-2 ring-white/70')}
             style={{ background: c }}
           />
         ))}

@@ -32,7 +32,7 @@ import {
   Terminal as TermIcon,
   X,
 } from 'lucide-react'
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AdapterAction, Session, Tile as TileT } from '@shared/types'
 import type { Rect } from '../lib/layout'
 import { spring } from '../lib/motion'
@@ -104,10 +104,10 @@ export const Tile = memo(function Tile({
   const split = tile.preview?.split ?? 0.45
   const glow =
     s.status === 'waiting'
-      ? '0 0 0 1px rgba(251,191,36,0.55), 0 0 40px -6px rgba(251,191,36,0.45)'
+      ? '0 0 0 1px color-mix(in oklab, var(--color-amber-400) 70%, transparent), 0 0 32px -8px color-mix(in oklab, var(--color-amber-400) 50%, transparent)'
       : active
-        ? `0 0 0 1px color-mix(in oklab, ${color} 55%, transparent), 0 24px 60px -24px color-mix(in oklab, ${color} 50%, transparent)`
-        : '0 0 0 1px rgba(255,255,255,0.06), 0 18px 50px -30px rgba(0,0,0,0.9)'
+        ? 'var(--tile-shadow-active)'
+        : 'var(--tile-shadow)'
 
   const openPreview = () => {
     const url = tile.preview?.url || s.url || (portList[0] ? `http://localhost:${portList[0]}` : '')
@@ -125,7 +125,6 @@ export const Tile = memo(function Tile({
         y: rect.y,
         width: rect.w,
         height: rect.h,
-        boxShadow: glow,
       }}
       exit={{ opacity: 0, scale: 0.8, filter: 'blur(8px)', transition: { duration: 0.22 } }}
       transition={spring.layout}
@@ -142,16 +141,16 @@ export const Tile = memo(function Tile({
       onDragLeave={() => setDragOver(false)}
       onDrop={() => setDragOver(false)}
       className={cx(
-        'absolute top-0 left-0 flex flex-col overflow-hidden rounded-[18px]',
+        'orch-tile absolute top-0 left-0 flex flex-col overflow-hidden rounded-[var(--tile-radius)]',
         selected && 'outline-2 outline-offset-2 outline-violet-400/70',
       )}
-      style={{ background: 'var(--tile-bg)', backdropFilter: 'blur(24px) saturate(150%)' }}
+      style={{ background: 'var(--tile-bg)', backdropFilter: 'var(--tile-blur)', boxShadow: glow }}
+      data-active={active}
+      data-status={s.status}
     >
-      {/* project stripe */}
-      <div className="absolute inset-x-0 top-0 h-[2px] opacity-80" style={{ background: `linear-gradient(90deg, ${color}, transparent 70%)` }} />
       {s.status === 'waiting' && (
         <motion.div
-          className="pointer-events-none absolute inset-0 rounded-[18px] ring-2 ring-amber-300/40"
+          className="pointer-events-none absolute inset-0 rounded-[var(--tile-radius)] ring-2 ring-amber-300/40"
           animate={{ opacity: [0.2, 0.9, 0.2] }}
           transition={{ duration: 1.6, repeat: Infinity }}
         />
@@ -170,10 +169,10 @@ export const Tile = memo(function Tile({
         }}
         onClick={(e) => e.shiftKey && toggleSelect(tile.id)}
         onDoubleClick={() => focusTile(focused ? null : tile.id)}
-        className="group/h flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-white/[0.05] pr-1.5 pl-2 active:cursor-grabbing"
+        className="orch-tile-head group/h flex h-10 shrink-0 cursor-grab items-center gap-2 border-b border-white/[0.06] pr-1.5 pl-2 active:cursor-grabbing"
       >
         <GripVertical size={13} className="text-white/20 transition group-hover/h:text-white/45" />
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 10px ${color}` }} />
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
         {renaming ? (
           <input
             autoFocus
@@ -187,13 +186,13 @@ export const Tile = memo(function Tile({
             className="w-28 rounded bg-black/40 px-1 text-[13px] text-white outline-none"
           />
         ) : (
-          <span className="truncate text-[13px] font-semibold text-white/90">{s.name}</span>
+          <span className="max-w-[40%] min-w-[4ch] shrink-0 truncate text-[13px] font-semibold text-white/90">{s.name}</span>
         )}
         {s.kind !== 'claude' && (
-          <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-white/50">{s.kind}</span>
+          <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-white/50">{s.kind}</span>
         )}
         {s.role !== 'plain' && (
-          <span className={cx('rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase', ROLE_STYLE[s.role])}>{s.role}</span>
+          <span className={cx('shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase', ROLE_STYLE[s.role])}>{s.role}</span>
         )}
         <StatusPill status={s.status} compact={rect.w < 460} />
         <BadgeChip s={s} />
@@ -221,7 +220,7 @@ export const Tile = memo(function Tile({
               onClick={() => setCtxOpen((o) => !o)}
               animate={s.contextPct >= 80 ? { scale: [1, 1.12, 1] } : { scale: 1 }}
               transition={s.contextPct >= 80 ? { duration: 1.4, repeat: Infinity } : spring.snappy}
-              className={cx('no-drag flex items-center gap-1 rounded-md px-1 text-[10.5px]', s.contextPct >= 80 ? 'text-rose-200' : 'text-white/40 hover:text-white/70')}
+              className={cx('no-drag flex shrink-0 items-center gap-1 rounded-md px-1 text-[10.5px] whitespace-nowrap', s.contextPct >= 80 ? 'text-rose-200' : 'text-white/40 hover:text-white/70')}
               title={`${s.contextPct}% of context used`}
             >
               <Ring pct={s.contextPct} size={16} />
@@ -253,7 +252,7 @@ export const Tile = memo(function Tile({
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={spring.bouncy}
-            className="rounded-full bg-sky-400/20 px-1.5 text-[10.5px] font-semibold text-sky-200"
+            className="shrink-0 rounded-full bg-sky-400/20 px-1.5 text-[10.5px] font-semibold whitespace-nowrap text-sky-200"
             title="Unread bus messages"
           >
             ✉ {s.unread}
@@ -271,7 +270,7 @@ export const Tile = memo(function Tile({
             onClick={openPreview}
           >
             <Globe size={14} />
-            {portList.length > 0 && <span className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
+            {portList.length > 0 && <span className="absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
           </IconButton>
         )}
         <IconButton title={focused ? 'Exit focus (⌘↵)' : 'Focus (⌘↵)'} onClick={() => focusTile(focused ? null : tile.id)}>
@@ -289,7 +288,10 @@ export const Tile = memo(function Tile({
                 projectPath={project?.path ?? s.cwd}
                 onClose={() => setMenu(false)}
                 onRename={() => setRenaming(true)}
-                onCloseTile={() => closeTile(tile.id)}
+                onCloseTile={() => {
+                  if (s.status === 'working' && !confirm(`${s.name} is working. Stop it and close?`)) return
+                  closeTile(tile.id)
+                }}
                 hasDev={!!devSession}
               />
             )}
@@ -309,7 +311,7 @@ export const Tile = memo(function Tile({
       {/* body */}
       <div className="relative flex min-h-0 flex-1">
         <motion.div
-          className="relative min-w-0"
+          className={cx('relative min-w-0', s.kind !== 'design' && 'orch-term orch-term-wrap')}
           animate={{ flexBasis: preview ? `${split * 100}%` : '100%' }}
           transition={spring.layout}
           style={{ flexGrow: 0, flexShrink: side ? 1 : 0 }}
@@ -368,7 +370,7 @@ function ExitedOverlay({ s }: { s: Session }) {
           </span>
           <button
             onClick={() => orch.invoke('session:restart', s.id)}
-            className="no-drag flex items-center gap-1.5 rounded-lg bg-violet-500/80 px-2.5 py-1 text-[12px] font-medium text-white hover:bg-violet-500"
+            className="no-drag flex items-center gap-1.5 rounded-lg bg-violet-500 px-2.5 py-1 text-[12px] font-medium text-on-accent hover:bg-violet-600"
           >
             <RotateCcw size={12} /> {s.kind === 'claude' ? 'Resume' : 'Restart'}
           </button>
@@ -389,9 +391,9 @@ function GitStrip({ s, narrow, tileId }: { s: Session; narrow: boolean; tileId: 
   }, [s.cwd, refreshGit])
   const wt = /-wt-/.test(s.cwd) || s.cwd !== s.repo
   return (
-    <div className="flex h-6 shrink-0 items-center gap-3 border-t border-white/[0.04] px-3 font-mono text-[10.5px] text-white/35">
-      <span className="flex min-w-0 items-center gap-1 text-white/55">
-        <GitBranch size={10} />
+    <div className="orch-strip flex h-6 shrink-0 items-center gap-3 overflow-hidden border-t border-white/[0.06] px-3 font-mono text-[10.5px] whitespace-nowrap text-white/45">
+      <span className="flex max-w-[45%] min-w-[4ch] shrink-0 items-center gap-1 text-white/55">
+        <GitBranch size={10} className="shrink-0" />
         <span className="truncate">{g?.branch ?? s.branch ?? '—'}</span>
       </span>
       {g && (g.ahead > 0 || g.behind > 0) && (
@@ -418,8 +420,8 @@ function GitStrip({ s, narrow, tileId }: { s: Session; narrow: boolean; tileId: 
       )}
       {wt && !narrow && <span className="rounded bg-white/[0.05] px-1 text-white/40">worktree</span>}
       <span className="flex-1" />
-      {!narrow && <span className="truncate">{tildify(s.cwd, orch.homedir)}</span>}
-      {reservedPorts && reservedPorts.length > 0 && <span className="text-emerald-300/60">:{reservedPorts.join(' :')}</span>}
+      {!narrow && <span className="min-w-0 shrink-[3] truncate">{tildify(s.cwd, orch.homedir)}</span>}
+      {reservedPorts && reservedPorts.length > 0 && <span className="min-w-0 truncate text-emerald-300/60">:{reservedPorts.join(' :')}</span>}
     </div>
   )
 }
@@ -477,6 +479,14 @@ function TileMenu({
     const sess = await orch.invoke('shell:run', s.cwd, projectPath, a.command, a.id)
     useApp.getState().addTile(sess.id)
   }
+  // The tile clips its overflow, so the menu scrolls within the space left below its trigger.
+  const [maxH, setMaxH] = useState<number>()
+  useLayoutEffect(() => {
+    const el = ref.current
+    const tile = el?.closest('.orch-tile')
+    if (!el || !tile) return
+    setMaxH(Math.max(160, tile.getBoundingClientRect().bottom - el.getBoundingClientRect().top - 8))
+  }, [])
   return (
     <motion.div
       ref={ref}
@@ -484,7 +494,7 @@ function TileMenu({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.92, y: -4 }}
       transition={spring.bouncy}
-      style={{ transformOrigin: 'top right' }}
+      style={{ transformOrigin: 'top right', maxHeight: maxH }}
       className="glass absolute top-8 right-0 z-40 max-h-[70vh] w-64 overflow-y-auto scroll-thin rounded-2xl p-1.5 shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >

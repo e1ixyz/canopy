@@ -30,15 +30,18 @@ export function isFor(m: BusMessage, sessionId: string, sessions: Session[]): bo
   const from = sessions.find((s) => s.id === m.from)
   const target = sessions.find((s) => s.id === sessionId)
   if (m.to === '*' || m.to === 'all') return true
-  if (m.to === 'project') return !!from && !!target && from.projectId === target.projectId
+  if (m.to === 'project') {
+    const pid = m.projectId ?? from?.projectId
+    return !!pid && target?.projectId === pid
+  }
   return m.to === sessionId
 }
 
 export class Bus {
   constructor(private store: BusStore) {}
 
-  post(kind: BusKind, from: string, to: string, body: string, wake = false): BusMessage {
-    const m: BusMessage = { id: nanoid(10), kind, from, to, body, ts: Date.now(), readBy: [], wake }
+  post(kind: BusKind, from: string, to: string, body: string, wake = false, projectId?: string): BusMessage {
+    const m: BusMessage = { id: nanoid(10), kind, from, to, body, ts: Date.now(), readBy: [], wake, ...(projectId ? { projectId } : {}) }
     this.store.messages.push(m)
     if (this.store.messages.length > 1000) this.store.messages.splice(0, this.store.messages.length - 1000)
     this.store.onMessage(m)

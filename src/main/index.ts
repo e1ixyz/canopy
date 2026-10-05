@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, shell, webContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, Notification, shell, webContents } from 'electron'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir } from 'node:os'
@@ -13,6 +13,7 @@ import { listHosts } from './hosts'
 import { railwayProjects, revealVar } from './railway'
 import { ensureDir, orchHome } from './paths'
 import { listRecents, listTranscripts } from './recents'
+import { suggestBranch } from './naming'
 import { listSkills } from './skills'
 import { getState, loadState, saveState } from './store'
 import { conflicts, branches, gitStatus, isGitRepo, listWorktrees } from './worktree/git'
@@ -25,12 +26,40 @@ const emit = <K extends keyof EventMap>(ch: K, ...args: Parameters<EventMap[K]>)
   if (win && !win.isDestroyed()) win.webContents.send(ch, ...args)
 }
 
+/** The app's own page: the dev server in development, the bundled index.html otherwise */
+function isAppUrl(url: string | undefined) {
+  if (!url) return false
+  const dev = process.env.ELECTRON_RENDERER_URL
+  if (dev) return url.startsWith(dev)
+  return url.startsWith('file://') && url.includes('/renderer/index.html')
+}
+
+/** IPC only answers the app's own main frame: never a page the window was navigated to, or a frame inside it */
+function trusted(e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) {
+  return e.sender === win?.webContents && e.senderFrame?.parent === null && isAppUrl(e.senderFrame?.url)
+}
+
 function handle<K extends keyof InvokeMap>(ch: K, fn: (...args: Parameters<InvokeMap[K]>) => ReturnType<InvokeMap[K]> | Promise<Awaited<ReturnType<InvokeMap[K]>>>) {
-  ipcMain.handle(ch, (_e, ...args) => fn(...(args as Parameters<InvokeMap[K]>)))
+  ipcMain.handle(ch, (e, ...args) => {
+    if (!trusted(e)) throw new Error('Untrusted sender')
+    return fn(...(args as Parameters<InvokeMap[K]>))
+  })
 }
 
 function on<K extends keyof SendMap>(ch: K, fn: (...args: Parameters<SendMap[K]>) => void) {
-  ipcMain.on(ch, (_e, ...args) => fn(...(args as Parameters<SendMap[K]>)))
+  ipcMain.on(ch, (e, ...args) => {
+    if (trusted(e)) fn(...(args as Parameters<SendMap[K]>))
+  })
+}
+
+/** Window fill before the renderer paints (matches --app-bg) */
+function windowBg() {
+  return nativeTheme.shouldUseDarkColors ? '#111214' : '#f2f2f3'
+}
+/** Appearance drives nativeTheme, so the renderer's prefers-color-scheme, native controls and previews all follow it */
+function applyAppearance() {
+  nativeTheme.themeSource = getState().settings.appearance ?? 'system'
+  win?.setBackgroundColor(windowBg())
 }
 
 function createWindow() {
@@ -40,7 +69,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    backgroundColor: '#0a0a10',
+    backgroundColor: windowBg(),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
     vibrancy: 'under-window',
@@ -59,6 +88,10 @@ function createWindow() {
     win.webContents.on('console-message', (e) => {
       if (e.level === 'error' || e.level === 'warning') console.log(`[renderer:${e.level}] ${e.message} (${e.sourceId}:${e.lineNumber})`)
     })
+  // A link or file dropped on the window would otherwise navigate it away from the app (and the preload with it).
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!isAppUrl(url)) e.preventDefault()
+  })
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -87,12 +120,14 @@ function registerIpc() {
   handle('adapter:get', (p) => hub.worktrees.adapter(p))
   handle('worktree:list', async (p) => ((await isGitRepo(p)) ? hub.worktrees.list(p) : []))
   handle('worktree:create', (req) => hub.worktrees.create(req))
-  handle('worktree:remove', async (path, force) => {
-    for (const s of hub.list()) if (s.cwd === path || s.cwd.startsWith(path + '/')) hub.remove(s.id)
-    return hub.worktrees.remove(path, force)
-  })
+  handle('worktree:remove', (path, force) =>
+    hub.worktrees.remove(path, force, () => {
+      for (const s of hub.list()) if (s.cwd === path || s.cwd.startsWith(path + '/')) hub.remove(s.id)
+    }),
+  )
   handle('git:status', (cwd) => gitStatus(cwd))
   handle('git:branches', (p) => branches(p))
+  handle('worktree:suggestName', async (p, task) => suggestBranch(p, task, (await hub.worktrees.adapter(p))?.branchPrefix))
   handle('conflicts:get', (p) => conflicts(p))
   handle('session:spawn', (req) => hub.spawn(req))
   handle('session:kill', (id) => hub.kill(id))
@@ -107,7 +142,9 @@ function registerIpc() {
     st.activePageId = active
     saveState()
   })
-  handle('bus:send', ({ to, body, wake, from }) => hub.bus.post(to === '*' || to === 'project' ? 'broadcast' : 'message', from ?? 'user', to, body, wake ?? true))
+  handle('bus:send', ({ to, body, wake, from, projectId }) =>
+    hub.bus.post(to === '*' || to === 'project' ? 'broadcast' : 'message', from ?? 'user', to, body, wake ?? true, projectId),
+  )
   handle('bus:clear', () => {
     getState().messages.length = 0
     saveState()
@@ -118,6 +155,7 @@ function registerIpc() {
     const st = getState()
     st.settings = { ...st.settings, ...patch }
     saveState()
+    if ('appearance' in patch || 'theme' in patch) applyAppearance()
     return st.settings
   })
   handle('shot:save', (dataUrl, label) => {
@@ -228,7 +266,9 @@ function registerIpc() {
   on('pty:resize', (id, c, r) => hub.resize(id, c, r))
 }
 
-app.setName('Orchestrator')
+app.setName('Canopy')
+// The app was called Orchestrator; its state stays in that userData folder so nothing is lost.
+app.setPath('userData', join(app.getPath('appData'), 'Orchestrator'))
 // A second, isolated instance (own state, own sessions) for testing next to a real one.
 if (process.env.ORCH_USER_DATA) {
   app.setPath('userData', process.env.ORCH_USER_DATA)
@@ -256,6 +296,8 @@ app.whenReady().then(async () => {
   )
   registerIpc()
   hub.watcher.start()
+  applyAppearance()
+  nativeTheme.on('updated', () => win?.setBackgroundColor(windowBg()))
   createWindow()
   // Compiled out of release builds; ORCH_DEBUG_BUILD=1 keeps it (install-app.sh does).
   if (__DEBUG_SERVER__ && (!app.isPackaged || process.env.ORCH_DEBUG_PORT)) startDebugServer()

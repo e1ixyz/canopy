@@ -33,6 +33,28 @@ describe('GoalController', () => {
     expect(await c.report('w', { done: false, summary: 'still' })).toMatch(/last allowed round/)
     expect(deps.attention).toHaveBeenCalledWith('w', 'Goal stopped at round 2')
   })
+  it('nudges a QA that stops without a verdict, once per round', async () => {
+    const { c } = setup()
+    c.start('w', { goal: 'g', stop: 's', maxRounds: 2, qa: true })
+    await c.report('w', { done: true, summary: 'done' })
+    expect(c.onStop('qa1')).toMatch(/goal_verdict/)
+    expect(c.onStop('qa1')).toBeNull()
+  })
+  it('goes back to running when the QA session goes away', async () => {
+    const { c, deps } = setup()
+    c.start('w', { goal: 'g', stop: 's', maxRounds: 2, qa: true })
+    await c.report('w', { done: true, summary: 'done' })
+    c.onSessionGone('qa1')
+    expect(c.goals.get('w')?.status).toBe('running')
+    expect(deps.attention).toHaveBeenCalledWith('w', 'QA for round 1 ended without a verdict')
+  })
+  it('does not wait on a QA that could not start', async () => {
+    const { c, deps } = setup()
+    deps.qa.mockRejectedValueOnce(new Error('worker gone'))
+    c.start('w', { goal: 'g', stop: 's', maxRounds: 2, qa: true })
+    expect(await c.report('w', { done: true, summary: 'done' })).toMatch(/could not start/)
+    expect(c.goals.get('w')?.status).toBe('running')
+  })
   it('nudges once per round when the worker stops without reporting', () => {
     const { c } = setup()
     c.start('w', { goal: 'g', stop: 's', maxRounds: 2, qa: false })

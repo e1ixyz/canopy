@@ -24,7 +24,7 @@ const MODES: Record<string, string> = {
 }
 
 const chip =
-  'no-drag flex h-6 items-center gap-1 rounded-md px-1.5 text-[10.5px] font-medium whitespace-nowrap transition-colors bg-white/[0.05] text-white/60 hover:bg-white/[0.1] hover:text-white'
+  'no-drag flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[10.5px] font-medium whitespace-nowrap transition-colors bg-white/[0.05] text-white/60 hover:bg-white/[0.1] hover:text-white'
 
 function Menu({ items, onPick }: { items: { value: string; label: string; active?: boolean }[]; onPick: (v: string) => void }) {
   return (

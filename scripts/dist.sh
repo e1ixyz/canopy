@@ -4,7 +4,7 @@
 # copies the .dmg files back to dist/.
 set -e
 cd "$(dirname "$0")/.."
-OUT="$HOME/Library/Caches/Orchestrator-dist"
+OUT="$HOME/Library/Caches/Canopy-dist"
 rm -rf "$OUT"
 npx electron-vite build
 ORCH_ADHOC_SIGN=1 npx electron-builder --mac dmg --arm64 --x64 -c.directories.output="$OUT"

@@ -44,7 +44,7 @@ function PageView({ page, active, offset }: { page: Page; active: boolean; offse
   const focused = page.focusedTileId && page.tiles.some((t) => t.id === page.focusedTileId) ? page.focusedTileId : null
   const pad = 14
   const W = Math.max(0, size.w - pad * 2)
-  const H = Math.max(0, size.h - pad * 2 - 64)
+  const H = Math.max(0, size.h - pad * 2)
   const layout = useMemo(() => (focused ? focusLayout(items, focused, W, H) : gridLayout(items, W, H)), [items, focused, W, H])
 
   return (
@@ -60,7 +60,7 @@ function PageView({ page, active, offset }: { page: Page; active: boolean; offse
       transition={spring.gentle}
       style={{ pointerEvents: active ? 'auto' : 'none' }}
     >
-      <div className="relative" style={{ height: layout.height + pad * 2 + 64, margin: pad }}>
+      <div className="relative" style={{ height: layout.height + pad * 2, margin: pad }}>
         <AnimatePresence>
           {page.tiles.map((t) => {
             const r = layout.rects[t.id]

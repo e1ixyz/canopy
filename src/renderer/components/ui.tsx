@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Session } from '@shared/types'
 import { sheet, spring } from '../lib/motion'
 import { cx } from '../lib/util'
@@ -35,10 +35,9 @@ export function Button({
       className={cx(
         'no-drag inline-flex items-center justify-center gap-1.5 rounded-xl font-medium whitespace-nowrap transition-colors disabled:opacity-40',
         size === 'sm' ? 'h-7 px-2.5 text-[12px]' : 'h-9 px-3.5 text-[13px]',
-        tone === 'primary' &&
-          'bg-gradient-to-b from-violet-400 to-violet-600 text-white shadow-[0_6px_24px_-6px_rgba(139,92,246,0.7),inset_0_1px_0_rgba(255,255,255,0.25)]',
+        tone === 'primary' && 'orch-btn-primary bg-violet-500 text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-violet-600',
         tone === 'ghost' && 'text-white/70 hover:bg-white/[0.07] hover:text-white',
-        tone === 'soft' && 'bg-white/[0.06] text-white/85 hover:bg-white/[0.1] border border-white/[0.06]',
+        tone === 'soft' && 'orch-btn-soft bg-white/[0.06] text-white/85 hover:bg-white/[0.1] border border-white/[0.06]',
         tone === 'danger' && 'bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-400/20',
         className,
       )}
@@ -89,7 +88,7 @@ export function IconButton({
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
             transition={spring.bouncy}
-            className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9.5px] font-bold text-white shadow-lg"
+            className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9.5px] font-bold text-knob shadow-lg"
           >
             {badge}
           </motion.span>
@@ -112,12 +111,26 @@ export function Modal({
   width?: number
   align?: 'center' | 'top'
 }) {
+  const panel = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
+    // Capture phase: a focused terminal would otherwise eat Escape (xterm stops its propagation).
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [open, onClose])
+  useEffect(() => {
+    if (!open) return
+    // Take focus from whatever sat behind the sheet (often a terminal), and give it back on close.
+    const prev = document.activeElement as HTMLElement | null
+    const t = setTimeout(() => {
+      if (panel.current && !panel.current.contains(document.activeElement)) panel.current.focus({ preventScroll: true })
+    }, 0)
+    return () => {
+      clearTimeout(t)
+      if (prev?.isConnected) prev.focus({ preventScroll: true })
+    }
+  }, [open])
   return (
     <AnimatePresence>
       {open && (
@@ -128,12 +141,16 @@ export function Modal({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
         >
-          <div className="absolute inset-0 bg-black/45 backdrop-blur-[6px]" onClick={onClose} />
+          <div className="absolute inset-0 bg-[var(--scrim)] backdrop-blur-[3px]" onClick={onClose} />
           <motion.div
             {...sheet}
             transition={spring.bouncy}
+            ref={panel}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
             style={{ width, maxWidth: '100%' }}
-            className="glass relative max-h-[82vh] overflow-hidden rounded-3xl shadow-[0_40px_120px_-20px_rgba(0,0,0,0.8)]"
+            className="glass relative max-h-[82vh] overflow-hidden rounded-3xl shadow-[var(--pop-shadow)] outline-none"
           >
             {children}
           </motion.div>
@@ -192,7 +209,7 @@ export function StatusPill({ status, compact }: { status: Session['status']; com
       layout
       transition={spring.snappy}
       className={cx(
-        'relative inline-flex h-5 items-center gap-1.5 overflow-hidden rounded-full px-2 text-[10.5px] font-semibold tracking-wide uppercase',
+        'orch-pill relative inline-flex h-5 shrink-0 items-center gap-1.5 overflow-hidden rounded-full px-2 text-[10.5px] font-semibold tracking-wide whitespace-nowrap uppercase',
         'bg-white/[0.05]',
         s.text,
       )}
@@ -201,7 +218,7 @@ export function StatusPill({ status, compact }: { status: Session['status']; com
         {(status === 'working' || status === 'waiting' || status === 'starting') && (
           <span className={cx('absolute inline-flex h-full w-full animate-ping rounded-full opacity-70', s.dot)} />
         )}
-        <span className={cx('relative inline-flex h-1.5 w-1.5 rounded-full', s.dot)} />
+        <span className={cx('orch-led relative inline-flex h-1.5 w-1.5 rounded-full', s.dot)} />
       </span>
       {!compact && (
         <AnimatePresence mode="popLayout" initial={false}>
@@ -224,10 +241,10 @@ export function StatusPill({ status, compact }: { status: Session['status']; com
 export function Ring({ pct, size = 18 }: { pct: number; size?: number }) {
   const r = (size - 4) / 2
   const c = 2 * Math.PI * r
-  const color = pct > 85 ? '#fb7185' : pct > 65 ? '#fbbf24' : '#a78bfa'
+  const color = pct > 85 ? 'var(--color-rose-400)' : pct > 65 ? 'var(--color-amber-400)' : 'var(--color-violet-400)'
   return (
     <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.1)" strokeWidth={2.2} fill="none" />
+      <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--hairline-strong)" strokeWidth={2.2} fill="none" />
       <motion.circle
         cx={size / 2}
         cy={size / 2}
@@ -258,10 +275,16 @@ export function Popover({
   align?: 'left' | 'right'
   width?: number
 }) {
+  const pop = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    const onDown = () => onClose()
+    // The trigger shares the popover's wrapper and toggles it itself; closing here too would reopen it.
+    const onDown = (e: MouseEvent) => {
+      const wrap = pop.current?.parentElement
+      if (wrap && e.target instanceof Node && wrap.contains(e.target)) return
+      onClose()
+    }
     window.addEventListener('keydown', onKey)
     const t = setTimeout(() => window.addEventListener('mousedown', onDown), 0)
     return () => {
@@ -278,9 +301,10 @@ export function Popover({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: -4 }}
           transition={spring.bouncy}
+          ref={pop}
           onMouseDown={(e) => e.stopPropagation()}
           style={{ width, transformOrigin: align === 'right' ? 'top right' : 'top left' }}
-          className={cx('glass no-drag absolute top-9 z-50 rounded-2xl p-2 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.9)]', align === 'right' ? 'right-0' : 'left-0')}
+          className={cx('glass no-drag absolute top-9 z-50 rounded-2xl p-2 shadow-[var(--pop-shadow)]', align === 'right' ? 'right-0' : 'left-0')}
         >
           {children}
         </motion.div>
@@ -313,11 +337,11 @@ export const inputCls =
 export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
   return (
     <button type="button" onClick={() => onChange(!on)} className="no-drag flex items-center gap-2.5 text-left text-[13px] text-white/80">
-      <span className={cx('relative h-5 w-9 rounded-full transition-colors', on ? 'bg-violet-500' : 'bg-white/15')}>
+      <span className={cx('relative h-5 w-9 shrink-0 rounded-full transition-colors', on ? 'bg-violet-500' : 'bg-white/15')}>
         <motion.span
           animate={{ x: on ? 16 : 0 }}
           transition={spring.bouncy}
-          className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow"
+          className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-knob shadow"
         />
       </span>
       {label}

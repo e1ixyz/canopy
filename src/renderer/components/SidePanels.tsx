@@ -8,7 +8,7 @@ import { cx } from '../lib/util'
 import { useApp } from '../store/app'
 import { Button, inputCls, Segmented } from './ui'
 
-const panelCls = 'flex w-[min(340px,48%)] shrink-0 flex-col border-l border-white/[0.06] bg-[#0d0d15]/80'
+const panelCls = 'flex w-[min(340px,48%)] shrink-0 flex-col border-l border-white/[0.06] bg-[var(--tile-bg)]'
 const label = 'text-[10.5px] font-semibold tracking-[0.12em] text-white/35 uppercase'
 
 function Panel({ children }: { children: React.ReactNode }) {

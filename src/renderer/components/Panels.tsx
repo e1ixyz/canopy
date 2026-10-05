@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { FolderOpen, GitBranch, Loader2, Megaphone, Play, RefreshCw, Sparkles, Stethoscope, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_PROMPTS, PROMPT_INFO, PROMPT_KEYS, type PromptKey } from '@shared/prompts'
 import type { Adapter, GitStatus, Worktree } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
 import { submitPrompt } from '../lib/terms'
+import { APPEARANCES } from '../lib/theme'
 import { cx, tildify } from '../lib/util'
 import { findTile, useApp } from '../store/app'
 import { Button, Field, inputCls, Modal, Segmented, Toggle } from './ui'
@@ -14,11 +15,12 @@ export function SettingsPanel() {
   const { settingsOpen, set, settings, updateSettings } = useApp()
   return (
     <Modal open={settingsOpen} onClose={() => set({ settingsOpen: false })} width={560}>
-      <div className="scroll-thin max-h-[85vh] space-y-6 overflow-y-auto p-6">
+      <div className="scroll-thin max-h-[82vh] space-y-6 overflow-y-auto p-6">
         <div>
           <div className="text-[16px] font-semibold tracking-tight">Settings</div>
-          <div className="text-[12px] text-white/45">Applies to new sessions and bus traffic.</div>
+          <div className="text-[12px] text-white/45">Look and feel, plus defaults for new sessions and bus traffic.</div>
         </div>
+        <AppearanceSettings />
         <Field label="File claims">
           <Segmented
             id="claims"
@@ -40,6 +42,11 @@ export function SettingsPanel() {
           />
           <Toggle on={settings.notifications} onChange={(v) => updateSettings({ notifications: v })} label="macOS notifications when a session needs you" />
           <Toggle on={settings.reduceMotion} onChange={(v) => updateSettings({ reduceMotion: v })} label="Reduce motion" />
+          <Toggle
+            on={settings.nameWorktrees !== false}
+            onChange={(v) => updateSettings({ nameWorktrees: v })}
+            label="Name new worktrees from the first prompt when the branch is left empty"
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Default model">
@@ -72,6 +79,15 @@ export function SettingsPanel() {
         </div>
       </div>
     </Modal>
+  )
+}
+
+function AppearanceSettings() {
+  const { settings, updateSettings } = useApp()
+  return (
+    <Field label="Appearance">
+      <Segmented id="appearance" value={settings.appearance ?? 'system'} onChange={(v) => updateSettings({ appearance: v })} options={APPEARANCES} />
+    </Field>
   )
 }
 
@@ -108,14 +124,40 @@ function HostSettings() {
           </div>
         ))}
         <div className="flex gap-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mac-studio" className={cx(inputCls, 'w-36')} />
-          <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="admin@mac-studio.local -i ~/.ssh/mac_studio" className={cx(inputCls, 'flex-1 font-mono text-[12px]')} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="mac-studio" className={cx(inputCls, 'flex-[0_0_9rem]')} />
+          <input value={target} onChange={(e) => setTarget(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="admin@mac-studio.local -i ~/.ssh/mac_studio" className={cx(inputCls, 'min-w-0 flex-1 font-mono text-[12px]')} />
           <Button tone="soft" onClick={add} disabled={!name.trim()}>
             Add
           </Button>
         </div>
       </div>
     </div>
+  )
+}
+
+/** Edits a local draft and saves after a pause (or on blur), so typing never waits on the settings IPC round trip */
+function PromptEditor({ value, placeholder, onSave }: { value: string; placeholder: string; onSave: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  const saved = useRef(value)
+  const save = (v: string) => {
+    if (v === saved.current) return
+    saved.current = v
+    onSave(v)
+  }
+  useEffect(() => {
+    const t = setTimeout(() => save(draft), 600)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft])
+  return (
+    <textarea
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => save(draft)}
+      placeholder={placeholder}
+      rows={5}
+      className={cx(inputCls, 'resize-y font-mono text-[11.5px] leading-relaxed')}
+    />
   )
 }
 
@@ -140,13 +182,7 @@ function PromptSettings() {
               </button>
               {open === k && (
                 <div className="px-3 pb-3">
-                  <textarea
-                    value={settings.prompts?.[k] ?? ''}
-                    onChange={(e) => set(k, e.target.value)}
-                    placeholder={DEFAULT_PROMPTS[k]}
-                    rows={5}
-                    className={cx(inputCls, 'resize-y font-mono text-[11.5px] leading-relaxed')}
-                  />
+                  <PromptEditor key={k} value={settings.prompts?.[k] ?? ''} placeholder={DEFAULT_PROMPTS[k]} onSave={(v) => set(k, v)} />
                 </div>
               )}
             </div>
@@ -164,6 +200,7 @@ export function BroadcastSheet() {
   const list = targets.length ? targets : Object.values(sessions).filter((s) => s.kind === 'claude' && s.status === 'idle')
   const send = () => {
     if (!text.trim()) return
+    if (!list.length) return toast('No sessions to send to: select tiles, or wait for one to be idle', 'warn')
     for (const s of list) submitPrompt(s.id, text.trim())
     toast(`Prompt sent to ${list.length} session(s)`, 'ok')
     setText('')
@@ -197,7 +234,7 @@ export function BroadcastSheet() {
         <div className="flex justify-end gap-2">
           <Button onClick={() => set({ broadcastOpen: false })}>Cancel</Button>
           <Button tone="primary" disabled={!list.length} onClick={send}>
-            Send to {list.length} <kbd className="!bg-white/15 !text-white/80">⌘↵</kbd>
+            Send to {list.length} <kbd>⌘↵</kbd>
           </Button>
         </div>
       </div>
@@ -230,13 +267,18 @@ function WorktreesBody({ projectPath, setProjectPath }: { projectPath: string; s
 
   const load = async () => {
     setLoading(true)
-    const list = await orch.invoke('worktree:list', projectPath)
-    setWts(list)
-    setAdapter(await orch.invoke('adapter:get', projectPath))
-    const g: Record<string, GitStatus | null> = {}
-    await Promise.all(list.map(async (w) => (g[w.path] = await orch.invoke('git:status', w.path))))
-    setGit(g)
-    setLoading(false)
+    try {
+      const list = await orch.invoke('worktree:list', projectPath)
+      setWts(list)
+      setAdapter(await orch.invoke('adapter:get', projectPath))
+      const g: Record<string, GitStatus | null> = {}
+      await Promise.all(list.map(async (w) => (g[w.path] = await orch.invoke('git:status', w.path).catch(() => null))))
+      setGit(g)
+    } catch (e) {
+      toast((e as Error).message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => {
     load()
@@ -244,6 +286,10 @@ function WorktreesBody({ projectPath, setProjectPath }: { projectPath: string; s
   }, [projectPath])
 
   const remove = async (w: Worktree, force = false) => {
+    // Sessions inside the worktree would lose their cwd mid-run, so ask first.
+    const inside = Object.values(useApp.getState().sessions).filter((x) => x.cwd === w.path || x.cwd.startsWith(w.path + '/'))
+    // The main process stops them only once removal goes ahead (after its uncommitted-work check).
+    if (!force && inside.length && !confirm(`${inside.map((x) => x.name).join(', ')} ${inside.length === 1 ? 'is' : 'are'} running in ${w.branch}. Stop ${inside.length === 1 ? 'it' : 'them'} and remove the worktree?`)) return
     setRemoving(w.path)
     try {
       const r = await orch.invoke('worktree:remove', w.path, force)
