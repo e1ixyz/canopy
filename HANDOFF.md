@@ -85,7 +85,14 @@ Working and verified in the running app:
   - Goal rounds (`src/main/goal.ts`): worker → QA sibling → verdict → met.
   - Ship sheet (`src/main/ship.ts`): splits files between sessions that share a checkout.
 
-Unit tests (39) cover:
+Profiles (roadmap 23, built 2026-10-06):
+- `Settings.profiles` and `activeProfileId`. `Session.profileId`, `Project.profileId` and the handoff frontmatter carry the profile. The default profile has no `configDir`.
+- `hub.startNow` sets `CLAUDE_CONFIG_DIR` for Claude sessions on a non-default profile. This was checked in an isolated instance: the spawned `claude` had the variable and wrote into the profile's folder.
+- `transcriptPath` takes the profile's folder. Recents, Resume and skills read per profile, and usage reports `byProfile`.
+- UI: the top-bar pill and menu, the window stripe, a tile chip, the picker in the new-session sheet, palette commands, ⌥⌘1–9 and ⌥⌘P (matched on `e.code`, passed through xterm), and Settings → Profiles.
+- Not yet done for real: a `/login` on a second account, and two accounts running at the same time.
+
+Unit tests (87 as of 2026-10-06) cover:
 - ports, adapters (including quote-aware `fill`), git parsing, lsof parsing and attribution
 - the bus, globs and layout
 - usage ingest, the goal state machine, ship classification, shot naming and PR parsing
@@ -98,6 +105,7 @@ Not yet exercised end to end:
 - a full Ship through the user's `/ship` skill (the sheet was checked; nothing was pushed)
 
 ## Gotchas
+- Profiles: everything profile-shaped stays hidden until a second profile exists. Shells and dev tiles never get `CLAUDE_CONFIG_DIR`. Removing a profile is refused while it has running sessions, and its folder stays on disk.
 
 - Don't pass a first prompt as a positional `claude "…"` argument. Multi-line prompts land unsubmitted in the input box. `Hub.start` holds `pendingPrompt` and pastes it after the SessionStart hook.
 - Handoffs don't rely on the model calling the `handoff` tool, because Haiku skipped it. `collectHandoff` reads the last assistant message newer than the request. It retries for about 5 s because the transcript lags the Stop hook.
@@ -145,7 +153,7 @@ Not exercised: the Railway SSH button (it would open a production shell), runnin
 
 ## Next
 
-`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–18 and 21 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update; self-update from the checkout is built for install-app builds, release builds still need GitHub Releases), 20 (Linux/Windows) and 22 (tile borders that warn at 150k/200k/250k context tokens). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
+`ROADMAP.md` ranks what to fold in next, from your Claude Code history. Items 1–18, 21 and 23 are built. Open: Developer ID signing, notarization and GitHub Releases (rest of 18), then 19 (first-run checks, version tolerance, auto-update; self-update from the checkout is built for install-app builds, release builds still need GitHub Releases), 20 (Linux/Windows) and 22 (tile borders that warn at 150k/200k/250k context tokens). The in-app guide lives in `src/renderer/components/HelpPanel.tsx` (⌘/); update it when a feature changes.
 
 
 1. Run a worktree through the etwal adapter on a scratch branch and check that the port collision repair rewrote `.wt-run.sh` and `.env`.

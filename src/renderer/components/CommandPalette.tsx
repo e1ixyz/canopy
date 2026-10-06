@@ -8,6 +8,7 @@ import {
   Wand2,
   ArrowRight,
   BookOpen,
+  ChevronDown,
   Download,
   FolderOpen,
   GitFork,
@@ -22,6 +23,7 @@ import {
   Sparkles,
   TerminalSquare,
   TextSearch,
+  UserPlus,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { spring } from '../lib/motion'
@@ -31,7 +33,8 @@ import { cx, fuzzy } from '../lib/util'
 import { tileForSession, useApp } from '../store/app'
 import { freshHandoff, saveHandoff } from './TileChips'
 import { Modal } from './ui'
-import type { HostEntry, SkillInfo } from '@shared/types'
+import { DEFAULT_PROFILE_ID, profileColor, profilesOf, type HostEntry, type SkillInfo } from '@shared/types'
+import { initial, profileKey } from '../lib/profiles'
 import { openDb, openDeploy, openHost, runSkill } from '../lib/tiles'
 
 interface Cmd {
@@ -73,7 +76,7 @@ function Body() {
   const [skills, setSkills] = useState<SkillInfo[]>([])
   useEffect(() => {
     orch.invoke('hosts:list').then(setHosts)
-    orch.invoke('skills:list', activeSession?.kind === 'claude' ? activeSession.cwd : undefined).then(setSkills)
+    orch.invoke('skills:list', activeSession?.kind === 'claude' ? activeSession.cwd : undefined, activeSession?.profileId).then(setSkills)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -92,6 +95,26 @@ function Body() {
       { id: 'settings', group: 'View', label: 'Settings', icon: <Settings2 size={14} />, run: () => st.set({ settingsOpen: true }) },
       { id: 'update', group: 'View', label: 'Check for updates', icon: <Download size={14} />, run: () => st.checkForUpdates() },
     ]
+    const profiles = profilesOf(st.settings)
+    const activeProfile = st.settings.activeProfileId ?? DEFAULT_PROFILE_ID
+    if (profiles.length > 1) {
+      profiles.forEach((p, i) => {
+        const current = p.id === activeProfile
+        c.push({
+          id: `profile-${p.id}`,
+          group: 'Profiles',
+          label: current ? `${p.name} · current` : `Switch to ${p.name}`,
+          hint: profileKey(i),
+          icon: <span className="grid h-3.5 w-3.5 place-items-center rounded-full text-[8px] font-extrabold text-[var(--tile-bg)]" style={{ background: profileColor(p.color, document.documentElement.dataset.mode === 'light' ? 'light' : 'dark') }}>{initial(p.name)}</span>,
+          run: () => st.setActiveProfile(p.id),
+        })
+      })
+      c.push({ id: 'profile-menu', group: 'Profiles', label: 'Open profile menu', hint: '⌥⌘P', icon: <ChevronDown size={14} />, run: () => st.set({ profileMenuOpen: true }) })
+    }
+    c.push(
+      { id: 'profile-add', group: 'Profiles', label: 'Add profile…', icon: <UserPlus size={14} />, run: () => st.set({ settingsOpen: true, addingProfile: true }) },
+      { id: 'profile-manage', group: 'Profiles', label: 'Manage profiles', icon: <Settings2 size={14} />, run: () => st.set({ settingsOpen: true }) },
+    )
     if (activeTile && activeSession) {
       const claude = activeSession.kind === 'claude'
       const repo = activeSession.kind !== 'host' && activeSession.kind !== 'design'
@@ -149,7 +172,7 @@ function Body() {
     }
     return c
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [st.pages, st.sessions, st.recents, activeTile?.id, st.busOpen, hosts])
+  }, [st.pages, st.sessions, st.recents, activeTile?.id, st.busOpen, hosts, st.settings])
 
   const skillCmds = useMemo<Cmd[]>(
     () =>

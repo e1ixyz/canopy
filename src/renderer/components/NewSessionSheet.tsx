@@ -8,6 +8,8 @@ import { cx, tildify, timeAgo } from '../lib/util'
 import { useApp } from '../store/app'
 import { HandoffList } from './HandoffList'
 import { Button, Field, inputCls, Modal, Segmented } from './ui'
+import { DEFAULT_PROFILE_ID, profilesOf } from '@shared/types'
+import { ProfilePicker } from './Profiles'
 
 const ROLES: { value: Role; label: string }[] = [
   { value: 'plain', label: 'Plain' },
@@ -28,8 +30,17 @@ export function NewSessionSheet() {
 }
 
 function SheetBody() {
-  const { newSession, projects, sessions, set, spawn, toast, settings, handoffCounts } = useApp()
+  const { newSession, projects, sessions, set, spawn, toast, settings, handoffCounts, setProjectProfile } = useApp()
   const [projectPath, setProjectPath] = useState(newSession?.projectPath ?? projects[0]?.path ?? '')
+  const project = projects.find((p) => p.path === projectPath)
+  const [profileId, setProfileId] = useState(project?.profileId ?? settings.activeProfileId ?? DEFAULT_PROFILE_ID)
+  const [pinProfile, setPinProfile] = useState(!!project?.profileId)
+  // A different project brings its own default profile
+  useEffect(() => {
+    setProfileId(project?.profileId ?? settings.activeProfileId ?? DEFAULT_PROFILE_ID)
+    setPinProfile(!!project?.profileId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectPath])
   const [mode, setMode] = useState<'checkout' | 'worktree' | 'resume' | 'pickup'>(newSession?.mode ?? 'checkout')
   const [kind, setKind] = useState<'claude' | 'shell'>(newSession?.kind ?? 'claude')
   const [worktrees, setWorktrees] = useState<Worktree[]>([])
@@ -134,6 +145,7 @@ function SheetBody() {
       setBusy('Starting…')
       const finalRole = override?.role ?? role
       if (mode === 'resume' || mode === 'pickup') return
+      if (kind === 'claude' && project && (pinProfile ? project.profileId !== profileId : !!project.profileId)) await setProjectProfile(project.id, pinProfile ? profileId : null)
       await spawn({
         kind,
         projectPath,
@@ -143,6 +155,7 @@ function SheetBody() {
         model: model || undefined,
         permissionMode: override?.perm ?? (finalRole === 'reviewer' ? 'plan' : perm),
         prompt: prompt.trim() || undefined,
+        profileId: kind === 'claude' ? profileId : undefined,
       })
       set({ newSession: null })
     } catch (e) {
@@ -154,7 +167,7 @@ function SheetBody() {
 
   const resume = async (t: TranscriptSummary) => {
     setBusy('Resuming…')
-    await spawn({ kind: 'claude', projectPath, cwd: t.cwd, resumeFrom: t.id, role, model: model || undefined })
+    await spawn({ kind: 'claude', projectPath, cwd: t.cwd, resumeFrom: t.id, role, model: model || undefined, profileId: t.profileId })
     setBusy(null)
     set({ newSession: null })
   }
@@ -206,6 +219,19 @@ function SheetBody() {
             </Button>
           </div>
         </Field>
+
+        {kind === 'claude' && (mode === 'checkout' || mode === 'worktree') && profilesOf(settings).length > 1 && (
+          <div>
+            <div className="mb-1.5 text-[11px] font-semibold tracking-wider text-white/45 uppercase">Profile</div>
+            <ProfilePicker value={profileId} onChange={setProfileId} />
+            {project && (
+              <label className="mt-2 flex items-center gap-2 text-[12px] text-white/55">
+                <input type="checkbox" checked={pinProfile} onChange={(e) => setPinProfile(e.target.checked)} className="h-3.5 w-3.5 accent-violet-500" />
+                Always use this profile for {project.name}
+              </label>
+            )}
+          </div>
+        )}
 
         <div>
           <Segmented

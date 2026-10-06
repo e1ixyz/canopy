@@ -6,6 +6,7 @@ import { spring } from '../lib/motion'
 import { cx } from '../lib/util'
 import { useApp } from '../store/app'
 import { PortsPopover } from './PortsPopover'
+import { ProfileSwitcher } from './Profiles'
 import { IconButton } from './ui'
 import { UsageMeter } from './UsageMeter'
 
@@ -21,6 +22,7 @@ export function TopBar() {
 
   return (
     <div className="orch-topbar drag relative z-30 flex h-12 shrink-0 items-center gap-2 pr-3 pl-[86px]">
+      <ProfileSwitcher />
       <IconButton title="Projects (⌘O)" onClick={() => set({ view: 'launcher' })} active={view === 'launcher'}>
         <Home size={15} />
       </IconButton>

@@ -12,6 +12,8 @@ export interface Project {
   color: string
   pinned: boolean
   lastOpened: number
+  /** profile new sessions in this project start with, over the active one */
+  profileId?: string
 }
 
 export interface RecentProject {
@@ -81,6 +83,8 @@ export interface Session {
   goal?: GoalState
   /** what a deploy, db, host or design tile points at */
   target?: TileTarget
+  /** Claude profile (config dir) the session runs under; unset means the default */
+  profileId?: string
 }
 
 export type TileTarget =
@@ -139,6 +143,8 @@ export interface HandoffMeta {
   branch?: string
   session?: string
   transcriptId?: string
+  /** profile the original session ran under */
+  profileId?: string
   created: number
   used?: number
   /** the original conversation's transcript still exists */
@@ -194,6 +200,8 @@ export interface TokenTotals {
 
 export interface UsageSnapshot {
   today: TokenTotals
+  /** today's totals per profile id */
+  byProfile?: Record<string, TokenTotals>
   sessions: Record<string, { today: TokenTotals; all: TokenTotals; model?: string }>
   at: number
 }
@@ -356,6 +364,56 @@ export interface Settings {
   notifications: boolean
   prompts?: PromptOverrides
   hosts?: HostEntry[]
+  /** Claude accounts, each its own config dir; the default (~/.claude) is always first */
+  profiles?: Profile[]
+  /** profile new sessions start with */
+  activeProfileId?: string
+}
+
+/**
+ * A Claude account. Sessions on a profile run with CLAUDE_CONFIG_DIR set to its folder, so
+ * each has its own login, settings, history and transcripts. The default profile has no
+ * configDir and leaves CLAUDE_CONFIG_DIR unset.
+ */
+export interface Profile {
+  id: string
+  name: string
+  /** a key of PROFILE_COLORS */
+  color: string
+  configDir?: string
+}
+
+export const DEFAULT_PROFILE_ID = 'default'
+
+export interface NewProfile {
+  name: string
+  color: string
+  configDir: string
+  /** copy settings.json and CLAUDE.md from ~/.claude */
+  copySettings: boolean
+  /** symlink ~/.claude/skills so both profiles share skills */
+  linkSkills: boolean
+}
+
+/** Profile colors, each with a darker shade for light mode */
+export const PROFILE_COLORS: Record<string, { dark: string; light: string }> = {
+  orange: { dark: '#f2a15a', light: '#c4650f' },
+  violet: { dark: '#b892ff', light: '#7c4ddb' },
+  teal: { dark: '#4cc3b4', light: '#0f7d72' },
+  pink: { dark: '#ff8fb8', light: '#c2306a' },
+  yellow: { dark: '#f0c05a', light: '#8a6100' },
+  green: { dark: '#6fcf86', light: '#1e7d4f' },
+}
+
+/** The profile list with the default always present and first */
+export function profilesOf(settings: Pick<Settings, 'profiles'>): Profile[] {
+  const list = settings.profiles ?? []
+  const def = list.find((p) => p.id === DEFAULT_PROFILE_ID) ?? { id: DEFAULT_PROFILE_ID, name: 'Default', color: 'orange' }
+  return [def, ...list.filter((p) => p.id !== DEFAULT_PROFILE_ID)]
+}
+
+export function profileColor(color: string | undefined, mode: 'light' | 'dark') {
+  return (PROFILE_COLORS[color ?? ''] ?? PROFILE_COLORS.orange)[mode]
 }
 
 export interface AppState {
@@ -385,6 +443,7 @@ export interface SpawnRequest {
   pageId?: string
   resumeFrom?: string
   target?: TileTarget
+  profileId?: string
 }
 
 export interface NewWorktreeRequest {
@@ -402,6 +461,8 @@ export interface TranscriptSummary {
   cwd: string
   firstPrompt: string
   mtime: number
+  /** profile whose config dir holds the transcript */
+  profileId?: string
 }
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -114,6 +114,7 @@ export function getTerm(sessionId: string): TermEntry {
     if (ev.metaKey && ['k', 't', 'j', 'b', 'w', 'p', 'o', '/', 'Enter', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(ev.key))
       return false
     if (ev.metaKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && ev.altKey) return false
+    if (ev.metaKey && ev.altKey && (/^Digit[1-9]$/.test(ev.code) || ev.code === 'KeyP')) return false
     return true
   })
   term.onData((d) => orch.send('pty:write', sessionId, d))

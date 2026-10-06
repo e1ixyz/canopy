@@ -41,10 +41,10 @@ function scan(dir: string, source: SkillInfo['source'], prefix = ''): SkillInfo[
 }
 
 /** User skills, installed plugins' skills, and the project's own .claude/skills */
-export function listSkills(cwd?: string, home = homedir()): SkillInfo[] {
-  const out = [...scan(join(home, '.claude', 'skills'), 'user')]
+export function listSkills(cwd?: string, home = homedir(), claudeDir = join(home, '.claude')): SkillInfo[] {
+  const out = [...scan(join(claudeDir, 'skills'), 'user')]
   try {
-    const installed = JSON.parse(readFileSync(join(home, '.claude', 'plugins', 'installed_plugins.json'), 'utf8'))
+    const installed = JSON.parse(readFileSync(join(claudeDir, 'plugins', 'installed_plugins.json'), 'utf8'))
     for (const [key, entries] of Object.entries<{ installPath?: string }[]>(installed.plugins ?? {})) {
       const path = entries?.[entries.length - 1]?.installPath
       if (path) out.push(...scan(join(path, 'skills'), 'plugin', `${key.split('@')[0]}:`))

@@ -87,6 +87,13 @@ The thresholds are absolute token counts, so they mean the same thing on 200k an
 
 Open question before building: the border already glows amber when a session is waiting for input (`glow` in `Tile.tsx`), so a yellow border at 150k would read as "needs you." The first step needs its own look, such as orange or a thinner, dashed amber line, and a waiting session at 250k needs a rule for which signal wins. The ring has the same issue in a smaller way: it already turns amber above 65% and rose above 85% (`Ring` in `src/renderer/components/ui.tsx`), so on a 1M model it can show purple while the border is red. Ring colors should follow the same token thresholds.
 
+### 23. Work and personal profiles (built)
+You run Claude Code on two accounts, one for client work and one for your own projects. Each profile is a config folder handed to Claude Code as `CLAUDE_CONFIG_DIR`, so it gets its own Keychain login, settings, history and transcripts, and two can run at once. The default profile is `~/.claude` with the variable left unset, so nothing changes until you add a second one.
+
+The switcher is the colored pill at the left of the top bar (design A on the canvas at https://claude.ai/artifact/46mKeSFJefLRNDXNeS74FP), with a 2px line in the same color across the top of the window. ⌥⌘P opens its menu and ⌥⌘1–9 switch directly. Switching only changes which profile new sessions start as. A project can pin its own profile from the new-session sheet. Recents and Resume read every profile's folder, usage splits by profile, and child sessions inherit their parent's profile. Code: `src/main/profiles.ts`, `src/renderer/components/Profiles.tsx`.
+
+Possible extras: a per-profile `GH_CONFIG_DIR` and git author, so pushes from a personal session use the personal GitHub login.
+
 ## Later: the rest of your machine
 
 ### 12. Saved remote hosts (built)

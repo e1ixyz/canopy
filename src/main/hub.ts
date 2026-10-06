@@ -6,6 +6,7 @@ import * as pty from 'node-pty'
 import { nativeTheme } from 'electron'
 import type { EventMap } from '@shared/ipc'
 import {
+  DEFAULT_PROFILE_ID,
   PROJECT_COLORS,
   type Adapter,
   type AppState,
@@ -19,6 +20,7 @@ import {
   type Session,
   type SpawnRequest,
   type TileTarget,
+  type TokenTotals,
   type UsageSnapshot,
 } from '@shared/types'
 import { resolvePrompt, shipHasTargets, type PromptKey } from '@shared/prompts'
@@ -42,6 +44,7 @@ import { forgetVars, linkedProject, varsDiff } from './railway'
 import { UsageTracker, sumTotals } from './usage'
 import { fill } from './worktree/adapters'
 import { primaryRoot } from './worktree/git'
+import { findProfile, profileDir, profileEnv, resolveProfileId } from './profiles'
 import { WorktreeService } from './worktree/service'
 
 type Emit = <K extends keyof EventMap>(ch: K, ...args: Parameters<EventMap[K]>) => void
@@ -82,8 +85,13 @@ const NAMES = 'atlas birch cedar delta ember fern gale harbor iris juno kite lum
 const EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/
 const LOCAL_URL = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d{2,5})(?:\/[^\s'"`<>)\]]*)?/
 
-export function transcriptPath(cwd: string, id: string) {
-  return join(homedir(), '.claude', 'projects', projectSlug(cwd), `${id}.jsonl`)
+export function transcriptPath(cwd: string, id: string, claudeDir = join(homedir(), '.claude')) {
+  return join(claudeDir, 'projects', projectSlug(cwd), `${id}.jsonl`)
+}
+
+/** Config dir of a profile id (the default's when unknown) */
+export function claudeDirOf(profileId?: string) {
+  return profileDir(findProfile(getState().settings, profileId))
 }
 
 export class Hub {
@@ -253,6 +261,7 @@ export class Hub {
       unread: 0,
       command: req.command,
       target: req.target,
+      profileId: resolveProfileId(getState().settings, req.profileId, project?.profileId),
     }
     this.sessions.set(id, s)
     this.persist()
@@ -312,6 +321,8 @@ export class Hub {
       ORCH_SESSION_NAME: s.name,
       ORCH_URL: this.baseUrl,
     })
+    // Claude Code sessions only; a shell on a profile is still a plain shell
+    if (s.kind === 'claude') Object.assign(env, profileEnv(findProfile(getState().settings, s.profileId)))
     if (ports) {
       env.PORT = String(ports.api)
       env.WEB_PORT = String(ports.web)
@@ -322,7 +333,7 @@ export class Hub {
     if (s.kind === 'claude') {
       const files = writeSessionFiles(sessionDir(id), this.baseUrl, id, proc.token)
       // Only resume when Claude actually wrote a transcript; --resume on an empty id fails.
-      const resume = existsSync(transcriptPath(s.cwd, id))
+      const resume = existsSync(transcriptPath(s.cwd, id, claudeDirOf(s.profileId)))
       const roleKey = s.role === 'qa' ? 'qaBrief' : s.role === 'docs' ? 'docsBrief' : null
       const roleBrief = roleKey ? await this.prompt(id, roleKey) : undefined
       const brief = buildBrief(s, this.list().filter((o) => o.status !== 'exited'), ports, roleBrief)
@@ -791,7 +802,7 @@ export class Hub {
   private async finishHandoff(s: Session, text: string, mode: HandoffMode) {
     const project = getState().projects.find((p) => p.id === s.projectId)
     const saved = this.shelf.save(
-      { project: project?.path ?? s.repo ?? s.cwd, cwd: s.cwd, branch: s.branch, session: s.name, transcriptId: s.id, used: mode === 'fresh' ? Date.now() : undefined },
+      { project: project?.path ?? s.repo ?? s.cwd, cwd: s.cwd, branch: s.branch, session: s.name, transcriptId: s.id, profileId: s.profileId, used: mode === 'fresh' ? Date.now() : undefined },
       text,
     )
     this.emit('handoffs:changed')
@@ -801,21 +812,28 @@ export class Hub {
   }
 
   listHandoffs(projectPath?: string): HandoffMeta[] {
-    return this.shelf.list(projectPath).map((h) => ({ ...h, resumable: !!h.transcriptId && existsSync(transcriptPath(h.cwd, h.transcriptId)) }))
+    return this.shelf.list(projectPath).map((h) => ({ ...h, resumable: !!h.transcriptId && existsSync(transcriptPath(h.cwd, h.transcriptId, claudeDirOf(h.profileId))) }))
   }
 
   /** Start a session from a saved handoff, or resume the conversation it came from */
   async pickUp(file: string, original = false): Promise<Session> {
     const { meta, body } = this.shelf.read(file)
     let s: Session
-    if (original && meta.transcriptId && existsSync(transcriptPath(meta.cwd, meta.transcriptId))) {
+    if (original && meta.transcriptId && existsSync(transcriptPath(meta.cwd, meta.transcriptId, claudeDirOf(meta.profileId)))) {
       const existing = this.sessions.get(meta.transcriptId)
       if (existing) {
         if (existing.status === 'exited' || existing.status === 'error') await this.start(existing.id)
         s = { ...existing }
       } else {
         const taken = this.list().some((o) => o.name === meta.session)
-        s = await this.spawn({ kind: 'claude', projectPath: meta.project, cwd: meta.cwd, resumeFrom: meta.transcriptId, name: taken ? undefined : meta.session })
+        s = await this.spawn({
+          kind: 'claude',
+          projectPath: meta.project,
+          cwd: meta.cwd,
+          resumeFrom: meta.transcriptId,
+          name: taken ? undefined : meta.session,
+          profileId: meta.profileId,
+        })
       }
     } else {
       const here = existsSync(meta.cwd)
@@ -825,6 +843,7 @@ export class Hub {
         kind: 'claude',
         projectPath: meta.project,
         cwd,
+        profileId: meta.profileId,
         prompt: `You are picking up saved work${meta.session ? ` from session ${meta.session}` : ''}. ${restore}The handoff:\n\n${body}\n\nRead any files it points to, then carry on from its next steps.`,
       })
     }
@@ -843,6 +862,7 @@ export class Hub {
       role: from.role,
       model: from.model,
       name: from.name,
+      profileId: from.profileId,
       prompt: `You are picking up from an earlier session (${from.name}) that ran out of room. Their handoff:\n\n${summary}\n\nRead any files it points to, then carry on from its next steps.`,
     })
     this.emit('ui:replaceTile', from.id, next.id)
@@ -872,7 +892,7 @@ export class Hub {
       const wt = await this.worktrees.create({ projectPath: req.projectPath, branch })
       cwd = wt.path
     } else if (req.worktree && req.worktree !== 'same') cwd = req.worktree
-    const s = await this.spawn({ ...req, cwd, name: req.name ?? (preApproved ? from.name : undefined) })
+    const s = await this.spawn({ ...req, cwd, name: req.name ?? (preApproved ? from.name : undefined), profileId: req.profileId ?? from.profileId })
     if (preApproved) this.emit('ui:replaceTile', from.id, s.id)
     else this.emit('ui:addTile', s.id, from.id)
     return s
@@ -912,6 +932,7 @@ export class Hub {
       // its checks unattended instead of stopping on every shell command.
       permissionMode: 'auto',
       model: w.model,
+      profileId: w.profileId,
       name: `${w.name}-qa`,
       prompt: text,
     })
@@ -993,13 +1014,17 @@ export class Hub {
 
   usageSnapshot(): UsageSnapshot {
     const sessions: UsageSnapshot['sessions'] = {}
+    const perProfile: Record<string, TokenTotals[]> = {}
     for (const s of this.list()) {
       if (s.kind !== 'claude') continue
-      const file = this.procs.get(s.id)?.transcript ?? transcriptPath(s.cwd, s.id)
+      const file = this.procs.get(s.id)?.transcript ?? transcriptPath(s.cwd, s.id, claudeDirOf(s.profileId))
       const st = this.usage.read(file)
-      if (st) sessions[s.id] = { today: { ...st.today }, all: { ...st.all }, model: st.model }
+      if (!st) continue
+      sessions[s.id] = { today: { ...st.today }, all: { ...st.all }, model: st.model }
+      ;(perProfile[s.profileId ?? DEFAULT_PROFILE_ID] ??= []).push(st.today)
     }
-    return { today: sumTotals(Object.values(sessions).map((x) => x.today)), sessions, at: Date.now() }
+    const byProfile = Object.fromEntries(Object.entries(perProfile).map(([k, v]) => [k, sumTotals(v)]))
+    return { today: sumTotals(Object.values(sessions).map((x) => x.today)), byProfile, sessions, at: Date.now() }
   }
 
   // ---------- ship ----------

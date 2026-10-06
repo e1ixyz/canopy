@@ -10,6 +10,7 @@ import { APPEARANCES } from '../lib/theme'
 import { cx, tildify } from '../lib/util'
 import { findTile, useApp } from '../store/app'
 import { Button, Field, inputCls, Modal, Segmented, Toggle } from './ui'
+import { ProfileSettings } from './Profiles'
 
 export function SettingsPanel() {
   const { settingsOpen, set, settings, updateSettings } = useApp()
@@ -21,6 +22,7 @@ export function SettingsPanel() {
           <div className="text-[12px] text-white/45">Look and feel, plus defaults for new sessions and bus traffic.</div>
         </div>
         <AppearanceSettings />
+        <ProfileSettings />
         <Field label="File claims">
           <Segmented
             id="claims"

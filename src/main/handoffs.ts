@@ -6,7 +6,7 @@ import type { HandoffMeta } from '@shared/types'
  * Saved handoffs, one markdown file each, under <root>/<project>/<date>-<slug>.md.
  * A small frontmatter block carries where the work lives so it can be picked up later.
  */
-const FIELDS = ['title', 'project', 'cwd', 'branch', 'session', 'transcriptId', 'created', 'used'] as const
+const FIELDS = ['title', 'project', 'cwd', 'branch', 'session', 'transcriptId', 'profileId', 'created', 'used'] as const
 
 export function slugify(text: string, words = 4) {
   return (
@@ -66,6 +66,7 @@ export function parse(file: string, raw: string): { meta: HandoffMeta; body: str
       branch: fm.branch || undefined,
       session: fm.session || undefined,
       transcriptId: fm.transcriptId || undefined,
+      profileId: fm.profileId || undefined,
       created: time(fm.created) ?? 0,
       used: time(fm.used),
     },

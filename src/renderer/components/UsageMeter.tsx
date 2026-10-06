@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { submitPrompt } from '../lib/terms'
 import { cx } from '../lib/util'
 import { findTile, useApp } from '../store/app'
+import { useProfiles } from '../lib/profiles'
 import { Button, fmtTokens, Popover } from './ui'
 
 const billable = (t: { input: number; output: number; cacheWrite: number }) => t.input + t.output + t.cacheWrite
@@ -11,6 +12,7 @@ const billable = (t: { input: number; output: number; cacheWrite: number }) => t
 export function UsageMeter() {
   const [open, setOpen] = useState(false)
   const { usage, sessions, projects } = useApp()
+  const { profiles, multi, tint } = useProfiles()
   const today = usage ? billable(usage.today) : 0
 
   const rows = useMemo(() => {
@@ -73,6 +75,17 @@ export function UsageMeter() {
           ))}
           {!rows.length && <div className="py-4 text-center text-[12px] text-white/40">No Claude sessions yet.</div>}
         </div>
+        {multi && usage?.byProfile && (
+          <div className="mt-3 border-t border-white/[0.06] px-2 pt-2">
+            {profiles.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 py-0.5 text-[11.5px] text-white/60">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: tint(p).color }} />
+                <span className="truncate">{p.name}</span>
+                <span className="ml-auto font-mono">{fmtTokens(usage.byProfile?.[p.id] ? billable(usage.byProfile[p.id]) : 0)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {byProject.length > 1 && (
           <div className="mt-3 border-t border-white/[0.06] px-2 pt-2">
             {byProject.map(({ p, n }) => (

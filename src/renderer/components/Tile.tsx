@@ -49,6 +49,7 @@ import { DbPanel, DeployPanel } from './SidePanels'
 import { BadgeChip, GoalChip, ModeChips, saveHandoff, useFreshHandoff } from './TileChips'
 import { TerminalView } from './TerminalView'
 import { Button, IconButton, Popover, Ring, StatusPill } from './ui'
+import { ProfileChip } from './Profiles'
 
 const ROLE_STYLE: Record<string, string> = {
   lead: 'bg-fuchsia-400/15 text-fuchsia-200',
@@ -194,6 +195,7 @@ export const Tile = memo(function Tile({
         {s.role !== 'plain' && (
           <span className={cx('shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase', ROLE_STYLE[s.role])}>{s.role}</span>
         )}
+        {rect.w >= 380 && <ProfileChip session={s} />}
         <StatusPill status={s.status} compact={rect.w < 460} />
         <BadgeChip s={s} />
         <GoalChip s={s} />

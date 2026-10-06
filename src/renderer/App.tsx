@@ -18,6 +18,8 @@ import { Workspace } from './components/Workspace'
 import { focusTerm, setTermPalette } from './lib/terms'
 import { applyMode, currentMode, onModeChange, termPalette, type Mode } from './lib/theme'
 import { findTile, useApp } from './store/app'
+import { profilesOf } from '@shared/types'
+import { ProfileStripe } from './components/Profiles'
 
 /** Puts the resolved light/dark mode on <html>, and restyles terminals to match */
 function useTheme() {
@@ -80,6 +82,19 @@ function useShortcuts() {
       const el = e.target as HTMLElement | null
       const editable = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) && !el.classList.contains('xterm-helper-textarea')
       if (k === 'enter' && editable) return
+      // ⌥⌘1–9 switch profile, ⌥⌘P opens the profile menu. ⌥ changes e.key on macOS, so match the physical key.
+      if (e.altKey && (/^Digit[1-9]$/.test(e.code) || e.code === 'KeyP')) {
+        const profiles = profilesOf(st.settings)
+        if (profiles.length < 2 || modalOpen(st)) return
+        e.preventDefault()
+        e.stopPropagation()
+        if (e.code === 'KeyP') st.set({ profileMenuOpen: !st.profileMenuOpen })
+        else {
+          const p = profiles[Number(e.code.slice(5)) - 1]
+          if (p) st.setActiveProfile(p.id)
+        }
+        return
+      }
       // With a sheet or panel open, tile and page shortcuts would act on the workspace hidden behind it.
       if (k !== 'k' && k !== '/' && modalOpen(st)) {
         if (k !== 'w') return
@@ -141,6 +156,7 @@ export function App() {
     <MotionConfig reducedMotion={settings.reduceMotion ? 'always' : 'user'}>
       <div className="relative flex h-full flex-col">
         <div className="orch-backdrop pointer-events-none absolute inset-0" />
+        <ProfileStripe />
         <LayoutGroup>
           <TopBar />
           <div className="relative min-h-0 flex-1">

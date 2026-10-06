@@ -3,29 +3,15 @@ import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
 import type { RecentProject, TranscriptSummary } from '@shared/types'
 
-const claudeDir = join(homedir(), '.claude')
+/** Config dirs to read, one per profile; the default is ~/.claude */
+export type ClaudeDirs = { id: string; dir: string }[]
 
-/** Recent project dirs, from Claude Code's prompt history (the `project` field) */
-export function listRecents(limit = 40): RecentProject[] {
+const defaultDirs = (): ClaudeDirs => [{ id: 'default', dir: join(homedir(), '.claude') }]
+
+/** Recent project dirs, from Claude Code's prompt history (the `project` field) of every profile */
+export function listRecents(limit = 40, dirs: ClaudeDirs = defaultDirs()): RecentProject[] {
   const byPath = new Map<string, { lastUsed: number; prompts: number }>()
-  try {
-    const raw = readFileSync(join(claudeDir, 'history.jsonl'), 'utf8')
-    for (const line of raw.split('\n')) {
-      if (!line) continue
-      try {
-        const e = JSON.parse(line) as { project?: string; timestamp?: number }
-        if (!e.project) continue
-        const cur = byPath.get(e.project) ?? { lastUsed: 0, prompts: 0 }
-        cur.prompts++
-        cur.lastUsed = Math.max(cur.lastUsed, e.timestamp ?? 0)
-        byPath.set(e.project, cur)
-      } catch {
-        /* skip malformed lines */
-      }
-    }
-  } catch {
-    /* no history yet */
-  }
+  for (const { dir } of dirs) readHistory(join(dir, 'history.jsonl'), byPath)
   const home = homedir()
   return [...byPath.entries()]
     .filter(([p]) => p !== home && !p.startsWith('/private/tmp') && !p.startsWith('/tmp'))
@@ -43,6 +29,27 @@ export function listRecents(limit = 40): RecentProject[] {
     .filter((r) => r.exists)
     .sort((a, b) => b.lastUsed - a.lastUsed)
     .slice(0, limit)
+}
+
+function readHistory(file: string, byPath: Map<string, { lastUsed: number; prompts: number }>) {
+  try {
+    const raw = readFileSync(file, 'utf8')
+    for (const line of raw.split('\n')) {
+      if (!line) continue
+      try {
+        const e = JSON.parse(line) as { project?: string; timestamp?: number }
+        if (!e.project) continue
+        const cur = byPath.get(e.project) ?? { lastUsed: 0, prompts: 0 }
+        cur.prompts++
+        cur.lastUsed = Math.max(cur.lastUsed, e.timestamp ?? 0)
+        byPath.set(e.project, cur)
+      } catch {
+        /* skip malformed lines */
+      }
+    }
+  } catch {
+    /* no history yet */
+  }
 }
 
 /** Claude Code stores transcripts under ~/.claude/projects/<cwd with / . and space as -> */
@@ -84,16 +91,19 @@ function textOf(content: unknown): string {
 }
 
 /** Past sessions for a project, newest first, for the "resume into a tile" browser */
-export function listTranscripts(projectPath: string, limit = 30): TranscriptSummary[] {
-  const dir = join(claudeDir, 'projects', projectSlug(projectPath))
-  if (!existsSync(dir)) return []
-  const files = readdirSync(dir)
-    .filter((f) => f.endsWith('.jsonl'))
-    .map((f) => ({ f, mtime: statSync(join(dir, f)).mtimeMs }))
+export function listTranscripts(projectPath: string, limit = 30, dirs: ClaudeDirs = defaultDirs()): TranscriptSummary[] {
+  const files = dirs
+    .flatMap(({ id, dir: root }) => {
+      const dir = join(root, 'projects', projectSlug(projectPath))
+      if (!existsSync(dir)) return []
+      return readdirSync(dir)
+        .filter((f) => f.endsWith('.jsonl'))
+        .map((f) => ({ f, dir, profileId: id, mtime: statSync(join(dir, f)).mtimeMs }))
+    })
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, limit)
   const out: TranscriptSummary[] = []
-  for (const { f, mtime } of files) {
+  for (const { f, dir, profileId, mtime } of files) {
     let firstPrompt = ''
     let cwd = projectPath
     try {
@@ -114,7 +124,7 @@ export function listTranscripts(projectPath: string, limit = 30): TranscriptSumm
     } catch {
       continue
     }
-    out.push({ id: f.replace(/\.jsonl$/, ''), cwd, firstPrompt: firstPrompt || '(no prompt)', mtime })
+    out.push({ id: f.replace(/\.jsonl$/, ''), cwd, firstPrompt: firstPrompt || '(no prompt)', mtime, profileId })
   }
   return out
 }

@@ -31,6 +31,7 @@ import type {
   TranscriptSummary,
   UpdateState,
   Worktree,
+  NewProfile,
 } from './types'
 
 /** renderer -> main request/response channels */
@@ -40,6 +41,9 @@ export interface InvokeMap {
   'project:open': (path: string) => Project
   'project:pin': (id: string, pinned: boolean) => void
   'project:forget': (id: string) => void
+  'project:setProfile': (id: string, profileId: string | null) => void
+  'profiles:add': (input: NewProfile) => Settings
+  'profiles:remove': (id: string) => Settings
   'dialog:openFolder': () => string | null
   'adapter:get': (projectPath: string) => Adapter | null
   'worktree:list': (projectPath: string) => Worktree[]
@@ -99,7 +103,7 @@ export interface InvokeMap {
   'handoffs:import': (projectPath: string) => HandoffMeta | null
   'handoffs:pickUp': (file: string, original: boolean) => Session
   'hosts:list': () => HostEntry[]
-  'skills:list': (cwd?: string) => SkillInfo[]
+  'skills:list': (cwd?: string, profileId?: string) => SkillInfo[]
   'session:retarget': (id: string, target: TileTarget) => void
   'db:info': (sessionId: string) => DbInfo
   'db:envFiles': (cwd: string, varName?: string) => string[]

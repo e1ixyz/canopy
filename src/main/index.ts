@@ -5,8 +5,10 @@ import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { EventMap, InvokeMap, SendMap } from '@shared/ipc'
+import { DEFAULT_PROFILE_ID, profilesOf } from '@shared/types'
 import { startBusServer } from './bus/server'
-import { Hub } from './hub'
+import { claudeDirOf, Hub } from './hub'
+import { claudeDirs, expandTilde, prepareProfileDir, profileSlug } from './profiles'
 import { getPr } from './pr'
 import { envFilesWith } from './db'
 import { listHosts } from './hosts'
@@ -109,12 +111,46 @@ function registerIpc() {
   handle('update:prepare', () => void updater.prepare())
   handle('update:install', () => updater.install())
   handle('update:dismissError', () => updater.dismissError())
-  handle('recents:list', () => listRecents())
+  handle('recents:list', () => listRecents(40, claudeDirs(getState().settings)))
   handle('project:open', (path) => hub.openProject(path))
   handle('project:pin', (id, pinned) => {
     const p = getState().projects.find((x) => x.id === id)
     if (p) p.pinned = pinned
     saveState()
+  })
+  handle('project:setProfile', (id, profileId) => {
+    const p = getState().projects.find((x) => x.id === id)
+    if (p) p.profileId = profileId ?? undefined
+    saveState()
+  })
+  handle('profiles:add', (input) => {
+    const st = getState()
+    const list = profilesOf(st.settings)
+    const name = input.name.trim()
+    if (!name) throw new Error('Give the profile a name')
+    const configDir = input.configDir.trim()
+    if (!configDir) throw new Error('Choose a folder for the profile')
+    if (list.some((p) => p.configDir && expandTilde(p.configDir) === expandTilde(configDir))) throw new Error('Another profile already uses that folder')
+    let id = profileSlug(name)
+    while (list.some((p) => p.id === id)) id += '-2'
+    prepareProfileDir(expandTilde(configDir), input)
+    st.settings = { ...st.settings, profiles: [...list, { id, name, color: input.color, configDir }] }
+    saveState()
+    return st.settings
+  })
+  handle('profiles:remove', (id) => {
+    const st = getState()
+    if (id === DEFAULT_PROFILE_ID) throw new Error('The default profile can be renamed but not removed')
+    const live = hub.list().filter((s) => s.profileId === id && s.status !== 'exited' && s.status !== 'error')
+    if (live.length) throw new Error(`Stop its ${live.length} running session${live.length === 1 ? '' : 's'} first`)
+    st.settings = {
+      ...st.settings,
+      profiles: profilesOf(st.settings).filter((p) => p.id !== id),
+      activeProfileId: st.settings.activeProfileId === id ? DEFAULT_PROFILE_ID : st.settings.activeProfileId,
+    }
+    for (const p of st.projects) if (p.profileId === id) p.profileId = undefined
+    saveState()
+    return st.settings
   })
   handle('project:forget', (id) => {
     getState().projects = getState().projects.filter((p) => p.id !== id)
@@ -175,7 +211,8 @@ function registerIpc() {
   handle('transcripts:list', async (p) => {
     const wts = await listWorktrees(p)
     const paths = wts.length ? wts.map((w) => w.path) : [p]
-    return paths.flatMap((x) => listTranscripts(x)).sort((a, b) => b.mtime - a.mtime).slice(0, 40)
+    const dirs = claudeDirs(getState().settings)
+    return paths.flatMap((x) => listTranscripts(x, 30, dirs)).sort((a, b) => b.mtime - a.mtime).slice(0, 40)
   })
   handle('shell:openExternal', (url) => {
     shell.openExternal(url)
@@ -207,7 +244,7 @@ function registerIpc() {
   })
   handle('handoffs:pickUp', (file, original) => hub.pickUp(file, original))
   handle('hosts:list', () => listHosts(getState().settings.hosts))
-  handle('skills:list', (cwd) => listSkills(cwd))
+  handle('skills:list', (cwd, profileId) => listSkills(cwd, homedir(), claudeDirOf(profileId)))
   handle('session:retarget', (id, target) => hub.retarget(id, target))
   handle('db:info', (id) => hub.dbInfo(id))
   handle('db:envFiles', (cwd, varName) => envFilesWith(cwd, varName))

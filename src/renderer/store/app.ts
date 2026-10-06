@@ -15,7 +15,7 @@ import type {
   Tile,
   UsageSnapshot,
 } from '@shared/types'
-import { DEFAULT_SETTINGS } from '@shared/types'
+import { DEFAULT_PROFILE_ID, DEFAULT_SETTINGS, profilesOf } from '@shared/types'
 import { orch } from '../lib/orch'
 import { disposeTerm, focusTerm, onPtyData, setLinkHandler } from '../lib/terms'
 
@@ -62,6 +62,10 @@ interface AppStore {
   git: Record<string, GitStatus | null>
   busOpen: boolean
   paletteOpen: boolean
+  /** the top bar's profile menu */
+  profileMenuOpen: boolean
+  /** Settings opened straight to the add-profile form */
+  addingProfile: boolean
   overviewOpen: boolean
   settingsOpen: boolean
   worktreesOpen: boolean
@@ -118,6 +122,10 @@ interface AppStore {
   set: (p: Partial<AppStore>) => void
   jumpToSession: (sessionId: string) => void
   refreshGit: (cwd: string) => Promise<void>
+  /** profile new sessions start with */
+  setActiveProfile: (id: string) => Promise<void>
+  /** a project's own default profile, or null to follow the active one */
+  setProjectProfile: (projectId: string, profileId: string | null) => Promise<void>
   updateSettings: (p: Partial<Settings>) => Promise<void>
 }
 
@@ -165,6 +173,8 @@ export const useApp = create<AppStore>((set, get) => ({
   git: {},
   busOpen: false,
   paletteOpen: false,
+  profileMenuOpen: false,
+  addingProfile: false,
   overviewOpen: false,
   settingsOpen: false,
   worktreesOpen: false,
@@ -476,6 +486,20 @@ export const useApp = create<AppStore>((set, get) => ({
   updateSettings: async (p) => {
     const settings = await orch.invoke('settings:set', p)
     set({ settings })
+  },
+
+  setActiveProfile: async (id) => {
+    const profile = profilesOf(get().settings).find((p) => p.id === id)
+    if (!profile) return
+    set({ profileMenuOpen: false })
+    if (id === (get().settings.activeProfileId ?? DEFAULT_PROFILE_ID)) return
+    await get().updateSettings({ activeProfileId: id })
+    get().toast(`New sessions now start as ${profile.name}`, 'ok')
+  },
+
+  setProjectProfile: async (projectId, profileId) => {
+    await orch.invoke('project:setProfile', projectId, profileId)
+    set((st) => ({ projects: st.projects.map((p) => (p.id === projectId ? { ...p, profileId: profileId ?? undefined } : p)) }))
   },
 }))
 
