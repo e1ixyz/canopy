@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, nativeTheme, Notification, shell, webContents } from 'electron'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -13,6 +13,7 @@ import { getPr } from './pr'
 import { envFilesWith } from './db'
 import { listHosts } from './hosts'
 import { railwayProjects, revealVar } from './railway'
+import { sessionShotFile } from './shots'
 import { ensureDir, orchHome } from './paths'
 import { listRecents, listTranscripts } from './recents'
 import { suggestBranch } from './naming'
@@ -202,9 +203,7 @@ function registerIpc() {
     return st.settings
   })
   handle('shot:save', (dataUrl, label) => {
-    const dir = join(homedir(), 'Desktop', `${label.replace(/[^\w.-]+/g, '-')}-shots`)
-    mkdirSync(dir, { recursive: true })
-    const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`)
+    const file = sessionShotFile(label)
     writeFileSync(file, nativeImage.createFromDataURL(dataUrl).toPNG())
     return file
   })
@@ -286,9 +285,7 @@ function registerIpc() {
     const wc = webContents.fromId(wcId)
     if (!wc) throw new Error('Preview is gone')
     const img = await wc.capturePage()
-    const dir = join(homedir(), 'Desktop', `${label.replace(/[^\w.-]+/g, '-')}-shots`)
-    mkdirSync(dir, { recursive: true })
-    const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`)
+    const file = sessionShotFile(label)
     writeFileSync(file, img.toPNG())
     return file
   })

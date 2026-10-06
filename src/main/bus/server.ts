@@ -276,7 +276,7 @@ function buildMcp(hub: Hub, sid: string) {
   )
   server.registerTool(
     'browser_screenshot',
-    { description: 'Screenshot the preview (fullPage for the whole scroll height). Saved to the Desktop and returned as an image.', inputSchema: { fullPage: z.boolean().optional() } },
+    { description: 'Screenshot the preview (fullPage for the whole scroll height). Saved under ~/.orchestrator/shots and returned as an image.', inputSchema: { fullPage: z.boolean().optional() } },
     browserTool<{ fullPage?: boolean }>(async (wc, { fullPage }) => {
       const { file, jpeg } = await hub.browser.screenshot(wc, me().name, !!fullPage)
       return { content: [{ type: 'image' as const, data: jpeg, mimeType: 'image/jpeg' }, { type: 'text' as const, text: `Saved ${file}` }] }

@@ -22,7 +22,7 @@ To test next to a real instance without touching its state or stealing focus:
 ORCH_USER_DATA=/tmp/orch-test ORCH_HOME=/tmp/orch-home ORCH_DEBUG_PORT=47898 bun run dev
 ```
 
-`ORCH_HOME` moves `~/.orchestrator` (user adapters, saved handoffs) so a test instance doesn't touch yours.
+`ORCH_HOME` moves `~/.orchestrator` (user adapters, saved handoffs, per-session screenshots in `shots/<session>/`) so a test instance doesn't touch yours.
 
 In dev, or in an `install-app` build when `ORCH_DEBUG_PORT` is set, a debug server on `127.0.0.1:47899` (or that port) serves `/shot` (PNG of the window) and `/eval` (POST JS, runs in the renderer). The store is exposed as `window.__app` in dev. That is how the UI got verified: spawn sessions, send prompts with `orch.send('pty:write', id, …)`, then screenshot.
 
@@ -47,7 +47,7 @@ main (Node)                                   renderer (React + Motion)
   handoffs.ts   HandoffShelf: ~/.orchestrator/handoffs/<project>/<date>-<slug>.md
   tiles.ts      commandFor(): PTY command for deploy/db/host tiles (db URL via ORCH_DB_URL env)
   db.ts / dotenv.ts / railway.ts / hosts.ts / skills.ts   data for those tiles and the palette
-  paths.ts      orchHome() = ~/.orchestrator (or ORCH_HOME)
+  paths.ts      orchHome() = ~/.orchestrator (or ORCH_HOME); shots.ts sessionShotFile() puts one-off screenshots in its shots/<session>/
   naming.ts     suggestBranch(): worktree branch from the first prompt (one-shot `claude -p --model haiku`)
   termtext.ts   plainText()/TRUST/LIMIT: reading PTY output for status detection
 ```

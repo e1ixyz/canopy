@@ -183,7 +183,7 @@ export function PreviewPane({
       if (toSession) {
         orch.send('pty:write', session.id, shellQuote(file) + ' ')
         toast('Screenshot path pasted into the prompt', 'ok')
-      } else toast(`Saved ${file.split('/').pop()}`, 'ok')
+      } else toast(`Saved to ${file.replace(orch.homedir, '~')}`, 'ok')
     } catch (e) {
       toast((e as Error).message, 'error')
     }
@@ -301,7 +301,7 @@ export function PreviewPane({
           {scheme === 'light' ? <Sun size={13} /> : <Moon size={13} />}
         </IconButton>
         <IconButton
-          title="Screenshot and mark it up (⌥-click: just save to ~/Desktop, ⇧-click: save and paste the path)"
+          title="Screenshot and mark it up (⌥-click: just save it, ⇧-click: save and paste the path)"
           onClick={(e) => (e.altKey || e.shiftKey ? shot(e.shiftKey) : markUp())}
         >
           <Camera size={13} />

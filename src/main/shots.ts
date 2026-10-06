@@ -1,3 +1,6 @@
+import { join } from 'node:path'
+import { ensureDir, orchHome } from './paths'
+
 /** `01-ta-navigate-1440.png` from a route like `/ta/navigate?x=1` */
 export function shotFileName(index: number, route: string, width: number) {
   let path = route
@@ -19,4 +22,10 @@ export function resolveRoute(base: string, route: string) {
   const r = route.trim()
   if (/^https?:\/\//.test(r)) return r
   return new URL(r.startsWith('/') ? r : `/${r}`, base).toString()
+}
+
+/** A fresh timestamped path in `~/.orchestrator/shots/<label>/` for a one-off session screenshot */
+export function sessionShotFile(label: string) {
+  const dir = ensureDir(orchHome('shots', label.replace(/[^\w.-]+/g, '-')))
+  return join(dir, `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`)
 }

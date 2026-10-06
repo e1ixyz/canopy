@@ -1,8 +1,7 @@
 import { nativeImage, webContents, type WebContents } from 'electron'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { resolveRoute, shotFileName } from './shots'
+import { resolveRoute, sessionShotFile, shotFileName } from './shots'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -165,9 +164,7 @@ export class BrowserBridge {
 
   async screenshot(wc: WebContents, label: string, fullPage: boolean) {
     const png = fullPage ? await fullPagePng(wc) : (await wc.capturePage()).toPNG()
-    const dir = join(homedir(), 'Desktop', `${label.replace(/[^\w.-]+/g, '-')}-shots`)
-    mkdirSync(dir, { recursive: true })
-    const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`)
+    const file = sessionShotFile(label)
     writeFileSync(file, png)
     let img = nativeImage.createFromBuffer(png)
     if (img.getSize().width > 1280) img = img.resize({ width: 1280 })
