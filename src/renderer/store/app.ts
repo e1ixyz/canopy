@@ -327,7 +327,13 @@ export const useApp = create<AppStore>((set, get) => ({
 
   addTile: (sessionId, pageId) => {
     let target = pageId ?? get().activePageId
-    if (!target || !get().pages.some((p) => p.id === target)) target = get().addPage()
+    if (!target || !get().pages.some((p) => p.id === target)) {
+      // No page to land on: join the project's page, or start one named after the project.
+      const { sessions, projects, pages } = get()
+      const s = sessions[sessionId]
+      const home = s?.projectId ? pages.find((p) => p.tiles.some((t) => sessions[t.sessionId]?.projectId === s.projectId)) : undefined
+      target = home?.id ?? get().addPage(projects.find((p) => p.id === s?.projectId)?.name || s?.cwd.split('/').pop() || undefined)
+    }
     const tile: Tile = { id: nanoid(8), sessionId }
     updatePages((pages) => pages.map((p) => (p.id === target ? { ...p, tiles: [...p.tiles, tile], focusedTileId: p.focusedTileId ? tile.id : p.focusedTileId } : p)))
     set({ activePageId: target, activeTileId: tile.id, view: 'workspace' })
