@@ -2,7 +2,7 @@
 
 A desktop harness that runs many real `claude` CLI sessions in tiles, wires them into a shared bus, and gives each worktree its own ports and browser preview.
 
-_Last updated 2026-10-05._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
+_Last updated 2026-10-08._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
 
 The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing names changed: product name, window title, UI copy, the session brief, the icon. The repo lives at `~/Developer/Personal Projects/Canopy` (moved off the Desktop the same day) and the GitHub repo is `e1ixyz/canopy` (private). Internal names stayed: the package name, appId `dev.orchestrator.app`, the userData folder (`main/index.ts` pins it to `Application Support/Orchestrator` so state survives), `~/.orchestrator`, the `ORCH_*` env vars and the `orchestrator` MCP server and tool names.
 
@@ -105,6 +105,9 @@ Not yet exercised end to end:
 - a full Ship through the user's `/ship` skill (the sheet was checked; nothing was pushed)
 
 ## Gotchas
+- Preview: when Start dev server throws (no command found) or the dev session exits non-zero, the overlay offers Set up with Claude, which sends the `devSetup` prompt (`src/shared/prompts.ts`) to the tile's session: install deps, write a `devCommand` to `.orchestrator.json` in the main checkout (worktrees read the adapter from there). Not yet checked in the running app.
+- Usage: a session's total adds its subagent transcripts (`<id>/subagents/*.jsonl`, often several times the main file) and every transcript it has written since launch, since a `/clear` starts a new one (`Hub.transcripts`, in memory only). Closed sessions drop out of today's total. Unit-tested, not yet checked in the running app.
+- A tile with no target page (resume, handoff pickup, `spawn_session`, nothing active) joins its project's page or opens one named after the project. `Page N` is only for the New page button (`addTile` in `store/app.ts`). Not yet checked in the running app.
 - Profiles: everything profile-shaped stays hidden until a second profile exists. Shells and dev tiles never get `CLAUDE_CONFIG_DIR`. Removing a profile is refused while it has running sessions, and its folder stays on disk.
 
 - Don't pass a first prompt as a positional `claude "…"` argument. Multi-line prompts land unsubmitted in the input box. `Hub.start` holds `pendingPrompt` and pastes it after the SessionStart hook.

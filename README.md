@@ -51,7 +51,7 @@ Every prompt the app types into a session (the handoff request, Update HANDOFF.m
 
 ## Project adapters
 
-A repo with its own worktree tooling can drop a `.orchestrator.json` at its root. For repos you don't control, put adapters in `~/.orchestrator/adapters/` (Settings → Open folder); `match` is a path prefix and may start with `~/`. An adapter can route worktree creation and dev servers through the repo's scripts, add tile actions and a badge, set the database `.env` and Railway target, and override prompts. If a create script hands out ports another worktree already claims, the harness moves the new tree to a free pair. `examples/adapter.example.json` documents every field.
+A repo with its own worktree tooling can drop a `.orchestrator.json` at its root. For repos you don't control, put adapters in `~/.orchestrator/adapters/` (Settings → Open folder); `match` is a path prefix and may start with `~/`. An adapter can route worktree creation and dev servers through the repo's scripts, add tile actions and a badge, set the database `.env` and Railway target, and override prompts. If a create script hands out ports another worktree already claims, the harness moves the new tree to a free pair. `examples/adapter.example.json` documents every field. If a repo has no dev command, or its dev server exits, the preview offers Set up with Claude, which has the session install what's missing and write a `devCommand` to `.orchestrator.json`.
 
 ```json
 {

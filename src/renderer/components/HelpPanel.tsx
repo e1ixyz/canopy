@@ -163,7 +163,7 @@ const SECTIONS: Section[] = [
         'Each worktree has its own cookie jar, so a login on one branch never collides with another.',
         'Clicking a localhost link in a terminal opens it in the preview.',
       ] },
-      { p: 'No server yet? Start dev server runs the project adapter’s run script or the package.json dev script with the worktree’s ports exported. Its logs open under the preview.' },
+      { p: 'No server yet? Start dev server runs the project adapter’s run script or the package.json dev script with the worktree’s ports exported. Its logs open under the preview. If it can’t find a command or the server exits, Set up with Claude asks the tile’s session to install what’s missing and add a devCommand to the repo’s .orchestrator.json.' },
     ],
   },
   {

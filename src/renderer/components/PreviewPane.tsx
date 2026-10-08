@@ -14,12 +14,14 @@ import {
   Smartphone,
   Sun,
   Tablet,
+  Wand2,
   X,
 } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { PreviewState, Session, Tile } from '@shared/types'
 import { spring } from '../lib/motion'
 import { orch } from '../lib/orch'
+import { askPrompt } from '../lib/prompts'
 import { cx, hashStr, shellQuote } from '../lib/util'
 import { useApp } from '../store/app'
 import { TerminalView } from './TerminalView'
@@ -73,6 +75,7 @@ export function PreviewPane({
   const [frameW, setFrameW] = useState(0)
   const [dragging, setDragging] = useState(false)
   const [logs, setLogs] = useState(false)
+  const [devError, setDevError] = useState<string | null>(null)
   const ready = useRef(false)
 
   // Each worktree gets its own cookie jar, so logins never collide across worktrees.
@@ -198,12 +201,23 @@ export function PreviewPane({
 
   const startDev = async () => {
     try {
+      setDevError(null)
       await orch.invoke('dev:start', session.cwd, projectPath)
       setLogs(true)
       toast('Dev server starting…', 'ok')
     } catch (e) {
-      toast((e as Error).message, 'error')
+      setDevError((e as Error).message)
     }
+  }
+
+  // Start failed or the server died: offer to have Claude make it runnable in the repo.
+  const crashed = devSession?.status === 'exited' && !!devSession.exitCode && !ports.length
+  const setupReason = devError ?? (crashed ? `the dev server (${devSession?.command ?? 'dev command'}) exited with code ${devSession?.exitCode}` : null)
+  const setUp = () => {
+    if (!setupReason) return
+    askPrompt(session.id, 'devSetup', { error: setupReason, root: projectPath })
+    setDevError(null)
+    toast('Asked Claude to set up the dev server', 'ok')
   }
 
   const fixed = preview.width === 'fill' ? null : preview.width
@@ -347,7 +361,7 @@ export function PreviewPane({
         </div>
         {dragging && <div className="absolute inset-0 z-10 cursor-col-resize" />}
         <AnimatePresence>
-          {(failed || (!ports.length && (!url || url === 'about:blank'))) && (
+          {(failed || setupReason || (!ports.length && (!url || url === 'about:blank'))) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -356,16 +370,32 @@ export function PreviewPane({
               className="absolute inset-0 grid place-items-center bg-[color-mix(in_oklab,var(--tile-bg)_92%,transparent)] backdrop-blur"
             >
               <div className="max-w-xs text-center">
-                <div className="mb-1 text-[14px] font-semibold text-white/85">{failed ? 'Nothing answered there' : 'No dev server yet'}</div>
-                <div className="mb-4 text-[12px] text-white/45">
-                  {failed ? failed : 'Start one for this worktree; the preview loads as soon as it listens.'}
+                <div className="mb-1 text-[14px] font-semibold text-white/85">
+                  {setupReason ? 'The dev server didn’t start' : failed ? 'Nothing answered there' : 'No dev server yet'}
                 </div>
-                <button
-                  onClick={startDev}
-                  className="no-drag inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-[12.5px] font-semibold text-black shadow-lg"
-                >
-                  <Play size={13} /> Start dev server
-                </button>
+                <div className="mb-4 text-[12px] text-white/45">
+                  {setupReason ?? failed ?? 'Start one for this worktree; the preview loads as soon as it listens.'}
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {setupReason && session.kind === 'claude' && (
+                    <button
+                      onClick={setUp}
+                      title="Claude installs what's missing and adds a devCommand to .orchestrator.json"
+                      className="no-drag inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3.5 py-2 text-[12.5px] font-semibold text-black shadow-lg"
+                    >
+                      <Wand2 size={13} /> Set up with Claude
+                    </button>
+                  )}
+                  <button
+                    onClick={startDev}
+                    className={cx(
+                      'no-drag inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12.5px] font-semibold',
+                      setupReason && session.kind === 'claude' ? 'bg-white/[0.08] text-white/80 hover:bg-white/[0.12]' : 'bg-emerald-500 text-black shadow-lg',
+                    )}
+                  >
+                    <Play size={13} /> {setupReason ? 'Try again' : 'Start dev server'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}

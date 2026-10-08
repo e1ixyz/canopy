@@ -2,9 +2,9 @@
  * Every prompt the app types into a session. The defaults work for anyone;
  * Settings → Prompts and an adapter's `prompts` override them (settings win).
  */
-export type PromptKey = 'handoff' | 'updateHandoff' | 'prDraft' | 'prBody' | 'prFeedback' | 'ship' | 'qaBrief' | 'docsBrief'
+export type PromptKey = 'handoff' | 'updateHandoff' | 'prDraft' | 'prBody' | 'prFeedback' | 'ship' | 'qaBrief' | 'docsBrief' | 'devSetup'
 
-export const PROMPT_KEYS: PromptKey[] = ['handoff', 'updateHandoff', 'prDraft', 'prBody', 'prFeedback', 'ship', 'qaBrief', 'docsBrief']
+export const PROMPT_KEYS: PromptKey[] = ['handoff', 'updateHandoff', 'prDraft', 'prBody', 'prFeedback', 'ship', 'qaBrief', 'docsBrief', 'devSetup']
 
 export const PROMPT_INFO: Record<PromptKey, { label: string; vars?: string }> = {
   handoff: { label: 'Write a handoff (fresh session, save for later)' },
@@ -15,6 +15,7 @@ export const PROMPT_INFO: Record<PromptKey, { label: string; vars?: string }> = 
   ship: { label: 'Ship sheet', vars: '{files} {branch} {target}' },
   qaBrief: { label: 'QA role brief' },
   docsBrief: { label: 'Docs role brief' },
+  devSetup: { label: 'Preview: Set up the dev server', vars: '{error} {root}' },
 }
 
 export const DEFAULT_PROMPTS: Record<PromptKey, string> = {
@@ -39,6 +40,12 @@ export const DEFAULT_PROMPTS: Record<PromptKey, string> = {
   qaBrief:
     "Your role: QA. Verify the work instead of changing it: run the project's checks (tests, typecheck, lint, any gate script), read the diff for regressions, and use the orchestrator browser_* tools on the preview for anything user-facing. Report findings ranked by severity with send_message.",
   docsBrief: "Your role: DOCS. Keep the project's HANDOFF.md (and the README where it drifts) current as the other sessions land work. Ground every claim in the code.",
+  devSetup: [
+    "Canopy couldn't start a dev server for this worktree. What happened: {error}",
+    "Make it start: install the dependencies it needs, then add or update .orchestrator.json in {root} (the main checkout, where Canopy reads it) with a \"devCommand\" that starts the web app.",
+    'The command must listen on $WEB_PORT if that is set (and $PORT for an API), since Canopy exports both for each worktree.',
+    "Run it once to confirm it serves, stop it, and tell me what you installed and changed. Don't commit.",
+  ].join('\n'),
 }
 
 export type PromptOverrides = Partial<Record<PromptKey, string>>
