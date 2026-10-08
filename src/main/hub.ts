@@ -109,6 +109,8 @@ export class Hub {
   shelf = new HandoffShelf(orchHome('handoffs'))
   goals: GoalController
   private usage = new UsageTracker()
+  /** every transcript each session has written (a /clear starts a new one), so the meter keeps the earlier ones */
+  private transcripts = new Map<string, Set<string>>()
   private usageTimer?: NodeJS.Timeout
   private adapters = new Map<string, { at: number; a: Adapter | null }>()
   private badgeAt = new Map<string, number>()
@@ -1018,9 +1020,13 @@ export class Hub {
     for (const s of this.list()) {
       if (s.kind !== 'claude') continue
       const file = this.procs.get(s.id)?.transcript ?? transcriptPath(s.cwd, s.id, claudeDirOf(s.profileId))
-      const st = this.usage.read(file)
+      let files = this.transcripts.get(s.id)
+      if (!files) this.transcripts.set(s.id, (files = new Set()))
+      files.delete(file)
+      files.add(file)
+      const st = this.usage.readSession([...files])
       if (!st) continue
-      sessions[s.id] = { today: { ...st.today }, all: { ...st.all }, model: st.model }
+      sessions[s.id] = st
       ;(perProfile[s.profileId ?? DEFAULT_PROFILE_ID] ??= []).push(st.today)
     }
     const byProfile = Object.fromEntries(Object.entries(perProfile).map(([k, v]) => [k, sumTotals(v)]))

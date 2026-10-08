@@ -1,4 +1,5 @@
-import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import type { TokenTotals } from '@shared/types'
 
 export const zero = (): TokenTotals => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
@@ -68,6 +69,16 @@ export function newFileState(): FileState {
   return { pos: 0, partial: '', seen: new Set(), all: zero(), today: zero(), day: dayKey(Date.now()) }
 }
 
+/** A transcript plus the subagent transcripts Claude Code writes beside it, in <id>/subagents/ */
+export function transcriptFamily(file: string): string[] {
+  const dir = join(file.replace(/\.jsonl$/, ''), 'subagents')
+  try {
+    return [file, ...readdirSync(dir).filter((f) => f.endsWith('.jsonl')).map((f) => join(dir, f))]
+  } catch {
+    return [file]
+  }
+}
+
 /** Incrementally reads transcripts: each call only parses bytes appended since the last */
 export class UsageTracker {
   private files = new Map<string, FileState>()
@@ -97,6 +108,25 @@ export class UsageTracker {
       }
     } else if (st.day !== dayKey(Date.now())) ingestLines([], st, dayKey(Date.now()))
     return st
+  }
+
+  /** Totals over every transcript a session has written, subagents included; the model comes from the newest main transcript */
+  readSession(files: string[]): { today: TokenTotals; all: TokenTotals; model?: string } | null {
+    const today = zero()
+    const all = zero()
+    let model: string | undefined
+    let found = false
+    for (const main of files) {
+      for (const f of transcriptFamily(main)) {
+        const st = this.read(f)
+        if (!st) continue
+        found = true
+        add(today, st.today)
+        add(all, st.all)
+        if (f === main && st.model) model = st.model
+      }
+    }
+    return found ? { today, all, model } : null
   }
 }
 
