@@ -80,7 +80,7 @@ function Feed() {
   })
   const activeProject = projects.find((p) => p.id === activeProjectId)
   const name = useName()
-  const end = useRef<HTMLDivElement>(null)
+  const list = useRef<HTMLDivElement>(null)
   const [to, setTo] = useState('project')
   const [body, setBody] = useState('')
   const [wake, setWake] = useState(true)
@@ -89,8 +89,9 @@ function Feed() {
     () => messages.filter((m) => showSystem || m.kind === 'message' || m.kind === 'handoff' || m.kind === 'broadcast').slice(-200),
     [messages, showSystem],
   )
+  // Scroll only the feed: scrollIntoView also scrolls the overflow-hidden app root while the drawer slides in off-screen
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: 'smooth' })
+    list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' })
   }, [shown.length])
   const claude = Object.values(sessions).filter((s) => s.kind === 'claude' && s.status !== 'exited')
   // A recipient that exited or was closed drops out of the select; don't keep sending to it.
@@ -118,7 +119,7 @@ function Feed() {
           <Trash2 size={11} /> Clear
         </button>
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-thin px-3 pb-3">
+      <div ref={list} className="min-h-0 flex-1 space-y-2 overflow-y-auto scroll-thin px-3 pb-3">
         <AnimatePresence initial={false}>
           {shown.map((m) => (
             <Bubble key={m.id} m={m} name={name} />
@@ -129,7 +130,6 @@ function Feed() {
             Quiet so far. Sessions talk here with <code className="font-mono text-white/55">send_message</code>; you can too.
           </div>
         )}
-        <div ref={end} />
       </div>
       <div className="border-t border-white/[0.06] p-3">
         <div className="mb-2 flex items-center gap-2">
