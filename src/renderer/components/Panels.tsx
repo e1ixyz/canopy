@@ -66,6 +66,7 @@ export function SettingsPanel() {
               <option value="auto">Auto</option>
               <option value="acceptEdits">Accept edits</option>
               <option value="plan">Plan mode</option>
+              <option value="bypassPermissions">Bypass (careful)</option>
             </select>
           </Field>
         </div>

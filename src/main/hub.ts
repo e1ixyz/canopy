@@ -255,7 +255,8 @@ export class Hub {
       repo,
       role: req.role ?? 'plain',
       model: req.model || getState().settings.defaultModel || undefined,
-      permissionMode: req.permissionMode ?? (req.role === 'reviewer' ? 'plan' : undefined),
+      permissionMode:
+        req.permissionMode ?? (req.role === 'reviewer' ? 'plan' : req.kind === 'claude' ? getState().settings.defaultPermissionMode : undefined),
       status: 'starting',
       createdAt: Date.now(),
       started: !!req.resumeFrom,
