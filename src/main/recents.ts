@@ -159,26 +159,49 @@ export function lastAssistantText(transcriptPath: string): { text: string; ts: n
 }
 
 /** Context usage (percent) and model from the last assistant turn */
-export function contextUsage(transcriptPath: string, model?: string): number | undefined {
-  return contextInfo(transcriptPath, model)?.pct
+export function contextUsage(transcriptPath: string, hint?: string): number | undefined {
+  return contextInfo(transcriptPath, hint)?.pct
 }
 
-export function contextInfo(transcriptPath: string, model?: string): { pct: number; model?: string } | undefined {
+/**
+ * Context window for a model id. Claude 4.6 and later (every 5.x) have 1M; Haiku 4.5, Opus/Sonnet 4.5,
+ * Opus 4.1, the 4.0 models and Claude 3 have 200K unless the session asked for 1M with a [1m] model.
+ */
+export function contextWindow(model = '', hint = '', used = 0) {
+  if (used > 200_000 || /\[1m\]/i.test(model) || /\[1m\]/i.test(hint)) return 1_000_000
+  const id = model.toLowerCase().replace(/^.*?(?=claude-)/, '')
+  return /^claude-(?:3|(?:opus|sonnet|haiku)-4(?:-[015])?(?:-\d{8})?$)/.test(id) ? 200_000 : 1_000_000
+}
+
+/**
+ * Context used by the last turn, as a percent of the model's window. `hint` is the model the session was started with,
+ * which may carry a [1m] the transcript's model id drops. A compaction after the last turn counts as its postTokens.
+ */
+export function contextInfo(transcriptPath: string, hint?: string): { pct: number; model?: string } | undefined {
+  const pct = (used: number, model?: string) => Math.min(100, Math.round((used / contextWindow(model ?? hint, hint, used)) * 100))
   try {
-    const tail = readTail(transcriptPath, 256 * 1024).split('\n').reverse()
-    for (const line of tail) {
-      if (!line.includes('"usage"')) continue
-      try {
-        const e = JSON.parse(line)
-        const u = e.message?.usage
-        if (!u || e.isSidechain) continue
-        const used =
-          (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
-        const m = String(model ?? e.message?.model ?? '')
-        const window = /\[1m\]|1m/i.test(m) || used > 200_000 ? 1_000_000 : 200_000
-        return { pct: Math.min(100, Math.round((used / window) * 100)), model: e.message?.model }
-      } catch {
-        /* partial line */
+    // Resuming or compacting appends a few hundred KB of attachments, which can push the last turn out of a small tail
+    for (const bytes of [256 * 1024, 2 * 1024 * 1024]) {
+      const tail = readTail(transcriptPath, bytes).split('\n').reverse()
+      for (const line of tail) {
+        if (!line.includes('"usage"') && !line.includes('"compact_boundary"')) continue
+        try {
+          const e = JSON.parse(line)
+          if (e.subtype === 'compact_boundary') {
+            const post = e.compactMetadata?.postTokens
+            if (typeof post === 'number') return { pct: pct(post) }
+            continue
+          }
+          const u = e.message?.usage
+          const model: string | undefined = e.message?.model
+          // <synthetic> turns (API errors, interrupts) carry zeroed usage
+          if (!u || e.isSidechain || model === '<synthetic>') continue
+          const used =
+            (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0)
+          return { pct: pct(used, model), model }
+        } catch {
+          /* partial line */
+        }
       }
     }
   } catch {

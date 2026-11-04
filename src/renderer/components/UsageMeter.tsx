@@ -6,28 +6,42 @@ import { findTile, useApp } from '../store/app'
 import { useProfiles } from '../lib/profiles'
 import { Button, fmtTokens, Popover } from './ui'
 
-const billable = (t: { input: number; output: number; cacheWrite: number }) => t.input + t.output + t.cacheWrite
+/** US dollars, cents only under $10 */
+export function fmtUsd(n: number) {
+  if (n >= 1000) return `$${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`
+  return `$${n.toFixed(n >= 10 ? 0 : 2)}`
+}
 
-/** Today's token use across every session, from their transcripts */
+/** Today's usage across every session (closed ones too), priced per model from their transcripts */
 export function UsageMeter() {
   const [open, setOpen] = useState(false)
   const { usage, sessions, projects } = useApp()
   const { profiles, multi, tint } = useProfiles()
-  const today = usage ? billable(usage.today) : 0
+  const today = usage?.today.cost ?? 0
 
   const rows = useMemo(() => {
     if (!usage) return []
-    return Object.entries(usage.sessions)
-      .map(([id, u]) => ({ id, s: sessions[id], today: billable(u.today), cache: u.today.cacheRead, model: u.model }))
-      .filter((r) => r.s)
-      .sort((a, b) => b.today - a.today)
+    const live = Object.entries(usage.sessions)
+      .filter(([id]) => sessions[id])
+      .map(([id, u]) => ({ id, name: sessions[id].name, projectId: sessions[id].projectId, today: u.today.cost, model: u.model, closed: false }))
+    const closed = (usage.closed ?? []).map((c) => ({ id: c.id, name: c.name, projectId: c.projectId, today: c.today.cost, model: c.model, closed: true }))
+    return [...live, ...closed].sort((a, b) => b.today - a.today)
   }, [usage, sessions])
 
   const byProject = useMemo(() => {
     const m = new Map<string, number>()
-    for (const r of rows) m.set(r.s.projectId, (m.get(r.s.projectId) ?? 0) + r.today)
+    for (const r of rows) m.set(r.projectId, (m.get(r.projectId) ?? 0) + r.today)
     return [...m.entries()].map(([pid, n]) => ({ p: projects.find((x) => x.id === pid), n })).sort((a, b) => b.n - a.n)
   }, [rows, projects])
+
+  const tokens: [string, number][] = usage
+    ? [
+        ['Input', usage.today.input],
+        ['Output', usage.today.output],
+        ['Cache writes', usage.today.cacheWrite],
+        ['Cache reads', usage.today.cacheRead],
+      ]
+    : []
 
   const max = Math.max(1, ...rows.map((r) => r.today))
   const limited = Object.values(sessions).some((s) => s.attention && /limit/i.test(s.attention))
@@ -35,7 +49,7 @@ export function UsageMeter() {
   const runUsage = () => {
     const st = useApp.getState()
     const hit = st.activeTileId ? findTile(st.pages, st.activeTileId) : null
-    const id = hit?.tile.sessionId ?? rows[0]?.id
+    const id = hit?.tile.sessionId ?? rows.find((r) => !r.closed)?.id
     if (id && sessions[id]?.kind === 'claude') submitPrompt(id, '/usage')
     setOpen(false)
   }
@@ -43,7 +57,7 @@ export function UsageMeter() {
   return (
     <div className="no-drag relative">
       <button
-        title="Token use today"
+        title="Today’s usage at API prices"
         onClick={() => setOpen((o) => !o)}
         className={cx(
           'flex h-7 items-center gap-1.5 rounded-lg px-2 font-mono text-[11.5px] transition-colors',
@@ -51,22 +65,34 @@ export function UsageMeter() {
         )}
       >
         <Gauge size={14} />
-        {fmtTokens(today)}
+        {fmtUsd(today)}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} width={380}>
         <div className="px-2 pt-1 pb-2">
-          <div className="text-[13px] font-semibold">Tokens today</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[13px] font-semibold">Usage today</span>
+            <span className="ml-auto font-mono text-[13px] text-white/85">{fmtUsd(today)}</span>
+          </div>
           <div className="text-[11.5px] text-white/45">
-            Input + output + cache writes, read from each session's transcript. Cache reads ({fmtTokens(usage?.today.cacheRead ?? 0)}) are listed apart: they are cheap.
+            Priced at API list rates for the model that answered each message, cache reads included, from each session’s transcript.
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-1">
+            {tokens.map(([label, n]) => (
+              <div key={label} className="rounded-md bg-white/[0.04] px-1.5 py-1">
+                <div className="text-[10px] text-white/40">{label}</div>
+                <div className="font-mono text-[11.5px] text-white/75">{fmtTokens(n)}</div>
+              </div>
+            ))}
           </div>
         </div>
         <div className="max-h-[300px] space-y-1.5 overflow-y-auto scroll-thin px-2">
           {rows.map((r) => (
             <div key={r.id}>
               <div className="flex items-center gap-2 text-[12px]">
-                <span className="truncate font-medium text-white/85">{r.s.name}</span>
+                <span className={cx('truncate font-medium', r.closed ? 'text-white/50' : 'text-white/85')}>{r.name}</span>
+                {r.closed && <span className="text-[10.5px] text-white/35">closed</span>}
                 <span className="truncate text-[10.5px] text-white/35">{r.model?.replace(/^claude-/, '')}</span>
-                <span className="ml-auto font-mono text-white/70">{fmtTokens(r.today)}</span>
+                <span className="ml-auto font-mono text-white/70">{fmtUsd(r.today)}</span>
               </div>
               <div className="mt-1 h-1.5 rounded-full bg-white/[0.06]">
                 <div className="h-1.5 rounded-full bg-gradient-to-r from-violet-400 to-sky-400 transition-[width] duration-700" style={{ width: `${(r.today / max) * 100}%` }} />
@@ -81,7 +107,7 @@ export function UsageMeter() {
               <div key={p.id} className="flex items-center gap-2 py-0.5 text-[11.5px] text-white/60">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: tint(p).color }} />
                 <span className="truncate">{p.name}</span>
-                <span className="ml-auto font-mono">{fmtTokens(usage.byProfile?.[p.id] ? billable(usage.byProfile[p.id]) : 0)}</span>
+                <span className="ml-auto font-mono">{fmtUsd(usage.byProfile?.[p.id]?.cost ?? 0)}</span>
               </div>
             ))}
           </div>
@@ -92,7 +118,7 @@ export function UsageMeter() {
               <div key={p?.id ?? '?'} className="flex items-center gap-2 py-0.5 text-[11.5px] text-white/60">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: p?.color ?? '#888' }} />
                 {p?.name ?? 'other'}
-                <span className="ml-auto font-mono">{fmtTokens(n)}</span>
+                <span className="ml-auto font-mono">{fmtUsd(n)}</span>
               </div>
             ))}
           </div>

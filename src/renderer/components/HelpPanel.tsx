@@ -224,8 +224,8 @@ const SECTIONS: Section[] = [
     blurb: 'The questions you used to ask Claude, answered in the top bar.',
     blocks: [
       { p: 'The plug in the top bar lists every listening port on the machine with its process, working directory and owning session. Open sends it to that tile’s preview, Restart reruns the worktree’s dev server, and Kill stops it. A port no session owns asks before it is killed. Ports the app has reserved for worktrees are listed underneath, live or idle.' },
-      { p: 'The gauge shows today’s tokens across every session (input, output and cache writes), read from their transcripts. Its popover breaks that down by session and project and can run /usage in the active tile. A session that hits a rate or usage limit gets flagged and you get a notification.' },
-      { p: 'Chips on each Claude tile show the model, the effort level and the permission mode. Changing one runs /model, /effort or a Shift+Tab, the same as typing it yourself. The context ring opens Fresh session with handoff, Clear and Compact. Past 80% it pulses.' },
+      { p: 'The gauge shows what today’s Claude work would cost at API list prices. It reads each session’s transcript and prices every message for the model that answered it, with output, cache writes and cache reads at their own rates. Its popover lists the raw token counts, splits the cost by session and project (sessions you closed today still count) and can run /usage in the active tile. A session that hits a rate or usage limit gets flagged and you get a notification.' },
+      { p: 'Chips on each Claude tile show the model, the effort level and the permission mode. Changing one runs /model, /effort or a Shift+Tab, the same as typing it yourself. The context ring measures the last turn against the model’s window (1M tokens on Claude 4.6 and later, 200K on older models) and opens Fresh session with handoff, Clear and Compact. Past 80% it pulses.' },
     ],
   },
   {

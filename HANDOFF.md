@@ -2,7 +2,7 @@
 
 A desktop harness that runs many real `claude` CLI sessions in tiles, wires them into a shared bus, and gives each worktree its own ports and browser preview.
 
-_Last updated 2026-10-08._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
+_Last updated 2026-11-04._ App icon source: `build/icon.svg` (rendered to `build/icon.icns` and `build/icon.png` with `rsvg-convert` and `iconutil`).
 
 The app was renamed from Orchestrator to Canopy on 2026-10-05. Only user-facing names changed: product name, window title, UI copy, the session brief, the icon. The repo lives at `~/Developer/Personal Projects/Canopy` (moved off the Desktop the same day) and the GitHub repo is `e1ixyz/canopy` (private). Internal names stayed: the package name, appId `dev.orchestrator.app`, the userData folder (`main/index.ts` pins it to `Application Support/Orchestrator` so state survives), `~/.orchestrator`, the `ORCH_*` env vars and the `orchestrator` MCP server and tool names.
 
@@ -38,7 +38,7 @@ main (Node)                                   renderer (React + Motion)
   worktree/     git, ports, adapters, service
   port-watcher.ts lsof → ports per session (process tree first, then deepest cwd)
   recents.ts    history.jsonl, transcripts, context usage, last assistant text
-  usage.ts      incremental token totals per transcript
+  usage.ts      incremental token totals and per-model USD cost per transcript
   browser.ts    BrowserBridge: preview webviews for MCP browser_* tools + screenshot sets (CDP)
   goal.ts       GoalController: rounds, QA verdicts, stop nudges
   ship.ts / pr.ts  changed-file ownership; gh pr view
@@ -75,7 +75,7 @@ Working and verified in the running app:
 - overview, palette, new-session sheet, guide (⌘/)
 - Roadmap items 1–10 (built 2026-10-02), each exercised in an isolated instance against the scratch demo repo with Haiku sessions:
   - Ports popover: listeners with command, cwd and owner; kill (verified); restart dev.
-  - Usage meter: `src/main/usage.ts` tails transcripts incrementally, de-duplicated by message id.
+  - Usage meter: `src/main/usage.ts` tails transcripts incrementally, de-duplicated by message id, and prices each message at API list rates for its model (`messageCost`). The top bar shows dollars; the popover lists raw token counts.
   - Fresh session with handoff, which replaces the tile.
   - Model, effort and mode chips. The mode is read from the hooks' `permission_mode`.
   - Adapter actions plus a ratchet badge. Etwal: wt-doctor, wt-status, wt-merge-check, `ds:check`. Commands resolve with the "Client Work" space quoted correctly.
@@ -106,7 +106,8 @@ Not yet exercised end to end:
 
 ## Gotchas
 - Preview: when Start dev server throws (no command found) or the dev session exits non-zero, the overlay offers Set up with Claude, which sends the `devSetup` prompt (`src/shared/prompts.ts`) to the tile's session: install deps, write a `devCommand` to `.orchestrator.json` in the main checkout (worktrees read the adapter from there). Not yet checked in the running app.
-- Usage: a session's total adds its subagent transcripts (`<id>/subagents/*.jsonl`, often several times the main file) and every transcript it has written since launch, since a `/clear` starts a new one (`Hub.transcripts`, in memory only). Closed sessions drop out of today's total. Unit-tested, not yet checked in the running app.
+- Usage: a session's total adds its subagent transcripts (`<id>/subagents/*.jsonl`, often several times the main file) and every transcript it has written, since a `/clear` starts a new one (`Hub.transcripts`, persisted as `state.usageFiles`). Sessions closed today stay in the total via `state.closedUsage` until midnight. Each file counts once per snapshot by real path, so symlinked project folders under `~/.claude/projects` don't double count. Cache reads are most of the cost (about 70% of today's on 2026-11-04), which is why the meter shows dollars rather than a token sum. Unit-tested and checked against real transcripts, not yet eyeballed in the running app.
+- Context ring: `contextWindow` in `src/main/recents.ts` gives 1M for Claude 4.6+ and every 5.x model, 200K for older ones, or 1M for a `[1m]` model. After a compaction it uses the boundary's `compactMetadata.postTokens`. It reads up to a 2MB tail, because a resume or compaction appends a few hundred KB of attachments after the last turn. `<synthetic>` turns are skipped.
 - A tile with no target page (resume, handoff pickup, `spawn_session`, nothing active) joins its project's page or opens one named after the project. `Page N` is only for the New page button (`addTile` in `store/app.ts`). Not yet checked in the running app.
 - Profiles: everything profile-shaped stays hidden until a second profile exists. Shells and dev tiles never get `CLAUDE_CONFIG_DIR`. Removing a profile is refused while it has running sessions, and its folder stays on disk.
 

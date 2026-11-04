@@ -41,7 +41,7 @@ import { getState, saveState, sessionDir } from './store'
 import { baseName, commandFor, q, TARGET_KINDS } from './tiles'
 import { dbInfo } from './db'
 import { forgetVars, linkedProject, varsDiff } from './railway'
-import { UsageTracker, sumTotals } from './usage'
+import { dayKey, UsageTracker, sumTotals } from './usage'
 import { fill } from './worktree/adapters'
 import { primaryRoot } from './worktree/git'
 import { findProfile, profileDir, profileEnv, resolveProfileId } from './profiles'
@@ -109,7 +109,7 @@ export class Hub {
   shelf = new HandoffShelf(orchHome('handoffs'))
   goals: GoalController
   private usage = new UsageTracker()
-  /** every transcript each session has written (a /clear starts a new one), so the meter keeps the earlier ones */
+  /** every transcript each session has written (a /clear starts a new one), so the meter keeps the earlier ones; mirrored to state.usageFiles */
   private transcripts = new Map<string, Set<string>>()
   private usageTimer?: NodeJS.Timeout
   private adapters = new Map<string, { at: number; a: Adapter | null }>()
@@ -165,6 +165,8 @@ export class Hub {
       (id) => this.sessions.get(id)?.name ?? id,
     )
     for (const s of this.sessions.values()) this.goals.load(s.id, s.goal)
+    st.usageFiles = Object.fromEntries(Object.entries(st.usageFiles ?? {}).filter(([id]) => this.sessions.has(id)))
+    for (const [id, files] of Object.entries(st.usageFiles)) this.transcripts.set(id, new Set(files))
     this.usageTimer = setInterval(() => this.emit('usage:update', this.usageSnapshot()), 10_000)
   }
 
@@ -468,6 +470,7 @@ export class Hub {
   }
 
   remove(id: string) {
+    this.retireUsage(id)
     this.goals.onSessionGone(id)
     this.kill(id)
     this.procs.delete(id)
@@ -562,7 +565,10 @@ export class Hub {
       if (!info) return
       const p: Partial<Session> = {}
       if (info.pct !== s.contextPct) p.contextPct = info.pct
-      if (info.model && info.model !== s.model) p.model = info.model
+      // The transcript names the API model without the [1m] a session may have been started with; keep it while the family is unchanged
+      const family = (m?: string) => /opus|sonnet|haiku|fable|mythos/i.exec(m ?? '')?.[0].toLowerCase()
+      const model = info.model && /\[1m\]/i.test(s.model ?? '') && family(s.model) === family(info.model) ? `${info.model}[1m]` : info.model
+      if (model && model !== s.model) p.model = model
       if (Object.keys(p).length) this.patch(id, p)
     }
 
@@ -1015,23 +1021,69 @@ export class Hub {
 
   // ---------- usage ----------
 
+  /** A session's transcripts, oldest first; a new one (after /clear) is remembered across restarts */
+  private sessionFiles(s: Session) {
+    const file = this.procs.get(s.id)?.transcript ?? transcriptPath(s.cwd, s.id, claudeDirOf(s.profileId))
+    let files = this.transcripts.get(s.id)
+    if (!files) this.transcripts.set(s.id, (files = new Set()))
+    const known = files.has(file)
+    files.delete(file)
+    files.add(file)
+    if (!known) {
+      const st = getState()
+      st.usageFiles = { ...st.usageFiles, [s.id]: [...files] }
+      saveState()
+    }
+    return [...files]
+  }
+
+  /** Keep a closing session's transcripts in today's total until the day ends */
+  private retireUsage(id: string) {
+    const s = this.sessions.get(id)
+    if (s?.kind !== 'claude') return
+    const files = this.sessionFiles(s)
+    const st = getState()
+    this.transcripts.delete(id)
+    if (st.usageFiles) delete st.usageFiles[id]
+    const today = dayKey(Date.now())
+    st.closedUsage = [
+      ...(st.closedUsage ?? []).filter((c) => c.id !== id && dayKey(c.at) === today),
+      { id, name: s.name, projectId: s.projectId, profileId: s.profileId, files, at: Date.now() },
+    ]
+  }
+
   usageSnapshot(): UsageSnapshot {
     const sessions: UsageSnapshot['sessions'] = {}
     const perProfile: Record<string, TokenTotals[]> = {}
+    const totals: TokenTotals[] = []
+    // each transcript counts once, live sessions first, even when two sessions reach the same file
+    const counted = new Set<string>()
     for (const s of this.list()) {
       if (s.kind !== 'claude') continue
-      const file = this.procs.get(s.id)?.transcript ?? transcriptPath(s.cwd, s.id, claudeDirOf(s.profileId))
-      let files = this.transcripts.get(s.id)
-      if (!files) this.transcripts.set(s.id, (files = new Set()))
-      files.delete(file)
-      files.add(file)
-      const st = this.usage.readSession([...files])
-      if (!st) continue
-      sessions[s.id] = st
-      ;(perProfile[s.profileId ?? DEFAULT_PROFILE_ID] ??= []).push(st.today)
+      const u = this.usage.readSession(this.sessionFiles(s), counted)
+      if (!u) continue
+      sessions[s.id] = u
+      totals.push(u.today)
+      ;(perProfile[s.profileId ?? DEFAULT_PROFILE_ID] ??= []).push(u.today)
+    }
+    const st = getState()
+    const today = dayKey(Date.now())
+    const live = (st.closedUsage ?? []).filter((c) => dayKey(c.at) === today)
+    if (live.length !== (st.closedUsage?.length ?? 0)) {
+      st.closedUsage = live
+      saveState()
+    }
+    const closed: NonNullable<UsageSnapshot['closed']> = []
+    for (const c of live) {
+      if (this.sessions.has(c.id)) continue
+      const u = this.usage.readSession(c.files, counted)
+      if (!u) continue
+      closed.push({ id: c.id, name: c.name, projectId: c.projectId, today: u.today, model: u.model })
+      totals.push(u.today)
+      ;(perProfile[c.profileId ?? DEFAULT_PROFILE_ID] ??= []).push(u.today)
     }
     const byProfile = Object.fromEntries(Object.entries(perProfile).map(([k, v]) => [k, sumTotals(v)]))
-    return { today: sumTotals(Object.values(sessions).map((x) => x.today)), byProfile, sessions, at: Date.now() }
+    return { today: sumTotals(totals), byProfile, sessions, closed, at: Date.now() }
   }
 
   // ---------- ship ----------

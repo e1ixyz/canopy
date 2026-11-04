@@ -196,6 +196,18 @@ export interface TokenTotals {
   output: number
   cacheRead: number
   cacheWrite: number
+  /** USD at API list prices for the model that served each message */
+  cost: number
+}
+
+/** A session closed today: its transcripts keep counting toward today's total until the day ends */
+export interface ClosedUsage {
+  id: string
+  name: string
+  projectId: string
+  profileId?: string
+  files: string[]
+  at: number
 }
 
 export interface UsageSnapshot {
@@ -203,6 +215,8 @@ export interface UsageSnapshot {
   /** today's totals per profile id */
   byProfile?: Record<string, TokenTotals>
   sessions: Record<string, { today: TokenTotals; all: TokenTotals; model?: string }>
+  /** sessions closed today, still counted in today */
+  closed?: { id: string; name: string; projectId: string; today: TokenTotals; model?: string }[]
   at: number
 }
 
@@ -428,6 +442,10 @@ export interface AppState {
   shotSets: Record<string, ShotSetPrefs>
   /** Railway target per primary checkout, chosen once in the deploy setup sheet */
   deployTargets: Record<string, DeployTarget>
+  /** transcripts a session wrote before its current one (a /clear starts a new file), kept across restarts */
+  usageFiles?: Record<string, string[]>
+  /** sessions closed today, so the meter doesn't drop their tokens */
+  closedUsage?: ClosedUsage[]
 }
 
 export interface SpawnRequest {

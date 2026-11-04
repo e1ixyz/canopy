@@ -35,7 +35,7 @@ The release build is ad-hoc signed, not notarized, so macOS won't open it with a
 - Status pills, a context-usage ring, an attention queue (⌘J) and macOS notifications when a session needs you.
 - An overview of every session with live terminal thumbnails (⌘⇧O), plus a command palette that also searches every terminal's scrollback (⌘K).
 - Browser tools for Claude (`browser_open`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_screenshot`…) that drive the preview beside the terminal instead of Playwright.
-- A ports popover (kill, restart, open) and a token meter for today in the top bar. Each tile has model, effort and mode chips, plus a context ring that offers Fresh session with handoff.
+- A ports popover (kill, restart, open) and a usage meter in the top bar (today's cost at API prices, per session and project). Each tile has model, effort and mode chips, plus a context ring that offers Fresh session with handoff.
 - A PR panel per tile (state, checks, feedback, Draft PR / Update body), and screenshot sets that save numbered full-page PNGs of a list of routes.
 - Goals that run in rounds with a read-only QA sibling verifying each one, and a Ship sheet that stages only this session's files when others share the checkout.
 - Project actions and a ratchet badge from the repo's adapter.
